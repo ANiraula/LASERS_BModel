@@ -428,10 +428,9 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       ungroup()
   }
   #Filter out unecessary values
-  #View(SeparationRates)
   SeparationRates <- SeparationRates %>% select(Age, YOS, RemainingProb, SepProb)#Adding "YearsFirstRetire" for individual benefit filtering
   
-
+  View(SeparationRates)
   #Custom function to calculate cumulative future values
   
   #colnames(SalaryGrowth)[2] <- "YOS"
@@ -689,12 +688,12 @@ SalaryData2 <- data.frame(
                NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
-               ARR = 0.0725, #can set manually
-               COLA = 0.005, #can set manually
-               BenMult = 0.025, #can set manually
-               DC_EE_cont =  0.08, #can set manually
-               DC_ER_cont = 0.03, #can set manually
-               DC_return = 0.0525)
+               ARR = 0.07, #can set manually
+               COLA = 0.01, #can set manually
+               BenMult = 0.0182, #can set manually
+               DC_EE_cont =  0.09, #can set manually
+               DC_ER_cont = 0.05, #can set manually
+               DC_return = 0.05)
 )
 ################################
 
@@ -762,7 +761,7 @@ pwealth <- ggplot(SalaryData2, aes(Age,PVPenWealth/1000, fill = "DB Accrual Patt
                 text = paste0("Age: ", Age,
                               "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share or Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
   scale_x_continuous(breaks = seq(0, 80, by = 10),labels = function(x) paste0(x),
-                     name = paste0("Age (Entry age at 27)"), expand = c(0,0)) +
+                     name = paste0("Age (Entry age at 27"), expand = c(0,0)) +
   
   scale_y_continuous(breaks = seq(0, y_max/1000, by = 100),limits = c(0, y_max/1000*1.1), labels = function(x) paste0("$",x),
                      sec.axis = ggplot2::sec_axis(~./(y_max/100),

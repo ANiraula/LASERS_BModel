@@ -22,6 +22,9 @@ library(shiny)
 library(shinyWidgets)
 library(shinymanager)
 #setwd(getwd())
+#FileName <- 'NDPERS_BM_Inputs.xlsx'
+library(readxl)
+library(httr)
 
 #### Start the Timing
 #profvis({
@@ -55,7 +58,7 @@ tier <- 3
 #Early retirement" Either Age 55 + 25 YOS or Age 60
 
 #FileName <- 'NDPERS_BM_Inputs.xlsx'
-FileName <- 'LASERS_BM_Inputs.xlsx'
+FileName <- '/Users/anilniraula/LASERS_BModel/LASERS_BM_Inputs.xlsx'
 #FileName <- "https://github.com/ANiraula/NDPERS_BModel/blob/main/NDPERS_BM_Inputs.xlsx?raw=true"
 
 #urlfile="https://github.com/ANiraula/NDPERS_BModel/blob/main/NDPERS_BM_Inputs.xlsx?raw=true"
@@ -120,6 +123,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       RetirementRates2 <- read_excel(FileName, sheet = 'Retirement Rates YOS')
     }
   #View(TerminationRateBefore10)
+  
   
   ### Automate into a package ###
   
@@ -265,9 +269,9 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                                  #else{ScaleMultipleFeMaleGeneralRet}
       ),
       mort_male = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                         RP_2014_ann_employee_male_blend *  1.280, ifelse(Age >= 62, RP_2014_ann_employee_male_blend * 1.280,RP_2014_employee_male_blend*0.978)) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
+                         RP_2014_ann_employee_male_blend *  1.280, RP_2014_employee_male_blend*0.978) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
       mort_female = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                           RP_2014_ann_employee_female_blend *  1.280, ifelse(Age >= 62, RP_2014_ann_employee_female_blend * 1.144, RP_2014_employee_female_blend * 1.35)) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
+                           RP_2014_ann_employee_female_blend * 1.144,  RP_2014_employee_female_blend * 1.35) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
       mort = (mort_male + mort_female)/2) %>% 
       #Recalcualting average
       filter(Years >= 2021, entry_age >= 20) %>% 
@@ -323,7 +327,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #filter out the necessary variables
   MortalityTable <- MortalityTable %>% select(Age, Years, entry_age, mort) %>% 
     arrange(entry_age) 
-  
   
   ######################
   ######################
@@ -695,14 +698,16 @@ SalaryData2 <- data.frame(
                NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
-               ARR = 0.07, #can set manually
-               COLA = 0.01, #can set manually
-               BenMult = 0.0182, #can set manually
-               DC_EE_cont =  0.09, #can set manually
-               DC_ER_cont = 0.05, #can set manually
-               DC_return = 0.05)
+               ARR = 0.0725, #can set manually
+               COLA = 0.005, #can set manually
+               BenMult = 0.025, #can set manually
+               DC_EE_cont =  0.04, #can set manually
+               DC_ER_cont = 0.03, #can set manually
+               DC_return = 0.0525)
 )
-################################
+#View(SalaryData2)
+
+
 
 #View(SalaryData2)
 #data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
@@ -762,12 +767,12 @@ ui <- fluidPage(
                  radioGroupButtons("tier", "Employee Class", choices = c(2,3), selected = 3,
                                    status = "primary"),
                  #sliderInput("interest", "Contribution Interest", min = 0.02, max = 0.08, step = 0.005, value = 0.065),
-                 sliderInput("dr", "Discount Rate (%)", min = 4.25, max = 8.25, step = 0.5, value = 7.25),
-                 sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.5, value = 0.5),
-                 sliderInput("mult", "Benefit Multiplier", min = 1.5, max = 3, step = 0.25, value = 2.5),
-                 sliderInput("DCreturn", "DC Return Rate (%)",min = 3.25, max = 8.25, step = 0.5, value = 5.25),
-                 sliderInput("DC_EEcontr", "DC EE Contribution (%)", min = 0, max = 14, step = 0.5, value = 8),
-                 sliderInput("DC_ERcontr", "DC ER Contribution (%)", min = 0, max = 14, step = 0.5, value = 6),
+                 sliderInput("dr", "Discount Rate (%)", min = 4.25, max = 8.25, step = 0.25, value = 7.25),
+                 sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.25, value = 1),
+                 sliderInput("mult", "Benefit Multiplier", min = 0.8, max = 2.8, step = 0.25, value = 1.8),
+                 sliderInput("DCreturn", "DC Return Rate (%)",min = 3.25, max = 8.25, step = 0.25, value = 5.25),
+                 sliderInput("DC_EEcontr", "DC EE Contribution (%)", min = 0, max = 14, step = 0.25, value = 4),
+                 sliderInput("DC_ERcontr", "DC ER Contribution (%)", min = 0, max = 14, step = 0.25, value = 3),
                  
     ),
     mainPanel(
@@ -813,9 +818,9 @@ server <- function(input, output, session){
                    NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                    DC = TRUE, #(TRUE -- calculates DC using e.age)
                    e.age = input$e.age, #for DC
-                   ARR = input$dr/100, #can set manually
-                   COLA = input$cola/100, #can set manually
-                   BenMult = input$mult/100, #can set manually
+                   ARR = 0.0725, #can set manually
+                   COLA = 0.005, #can set manually
+                   BenMult = 0.025, #can set manually
                    DC_EE_cont =  input$DC_EEcontr/100, #can set manually
                    DC_ER_cont = input$DC_ERcontr/100, #can set manually
                    DC_return = input$DCreturn/100#can set manually
@@ -834,17 +839,51 @@ server <- function(input, output, session){
     
   })
   
+  ben.model2 <- reactive({
+    
+    ##############
+    
+    ######## BenefitModel  #########
+    SalaryData3 <- data.frame(
+      BenefitModel(employee = as.character(input$ee), #"Teachers", "General"
+                   tier = input$tier, #tier 2 for Legacy
+                   NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+                   DC = TRUE, #(TRUE -- calculates DC using e.age)
+                   e.age = input$e.age, #for DC
+                   ARR = input$dr/100, #can set manually
+                   COLA = input$cola/100, #can set manually
+                   BenMult = input$mult/100, #can set manually
+                   DC_EE_cont =  input$DC_EEcontr/100, #can set manually
+                   DC_ER_cont = input$DC_ERcontr/100, #can set manually
+                   DC_return = input$DCreturn/100#can set manually
+      )
+    )
+    
+    #View(SalaryData2)
+    e.age <- unique(SalaryData3$entry_age)
+    SalaryData3 <- data.frame(SalaryData3)
+    SalaryData3$entry_age <- as.numeric(SalaryData3$entry_age)
+    
+    SalaryData3$PVPenWealth <- as.numeric(SalaryData3$RealPenWealth)
+    
+    SalaryData3
+    
+    
+  })
+  
   output$plot_pwealth <- plotly::renderPlotly({
     
     
     
     SalaryData2 <- data.table(ben.model())
+    SalaryData3 <- data.table(ben.model2())
     
     
     
     y_max <- max(SalaryData2$PVPenWealth)
     
     SalaryData2 <- data.frame(SalaryData2)
+    SalaryData3 <- data.frame(SalaryData3)
     
     # View(SalaryData2 %>%
     #        select(entry_age, Age, YOS, RealPenWealth))
@@ -855,10 +894,21 @@ server <- function(input, output, session){
       geom_line(aes(group = 1,
                     text = paste0("Age: ", Age,
                                   "<br>DB Pension Wealth: $",round(PVPenWealth/1000,1), " Thousands")),size = 1.25, color = palette_reason$SatBlue)+
+      geom_line(aes(SalaryData3$Age, SalaryData3$RealHybridWealth/1000,
+                    group = 2,
+                    text = paste0("Age: ", Age,
+                                  "<br>Hybrid DB/DC Wealth at ", DC_return*100,"%: $", round(SalaryData3$RealHybridWealth/1000,1), " Thousands"),fill = "Hybrid DB/DC Accrual Pattern"), size = 1, color = palette_reason$Yellow)+
+      
+      geom_line(aes(SalaryData3$Age, SalaryData3$PVPenWealth/1000,
+                    group = 2,
+                    text = paste0("Age: ", Age,
+                                  "<br>Hybrid DB Pension Wealth: $",round(SalaryData3$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "Hybrid DB Accrual Pattern"), size = 1, color = palette_reason$LightBlue,linetype=3)+
+  
+
       geom_line(aes(Age, RealDC_balance/1000,
                     group = 2,
                     text = paste0("Age: ", Age,
-                                  "<br>DC Wealth at ", input$DCreturn,"% : $", round(RealDC_balance/1000,1), " Thousands"),fill = "DC Accrual Pattern"), size = 1, color = palette_reason$Orange)+
+                                  "<br>Hybrid DC Wealth at ", input$DCreturn,"%: $", round(RealDC_balance/1000,1), " Thousands"),fill = "DC Accrual Pattern"), size = 1, color = palette_reason$Orange,linetype=3)+
       geom_line(aes(Age, RemainingProb* (y_max/1000),
                     group = 3,
                     text = paste0("Age: ", Age,
