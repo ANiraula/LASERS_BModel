@@ -1,0 +1,13 @@
+name: PensionBenefitModel_LASERS
+title: PensionBenefitModel_LASERS
+username:
+account: reason
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6082051
+bundleId: 5794454
+url: https://reason.shinyapps.io/PensionBenefitModel_LASERS/
+when: 1649859013.72804
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|~$LASERS_BM_Inputs.xlsx|LASERS_R_BModel.R|README.md
