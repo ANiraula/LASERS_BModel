@@ -430,7 +430,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #Filter out unecessary values
   SeparationRates <- SeparationRates %>% select(Age, YOS, RemainingProb, SepProb)#Adding "YearsFirstRetire" for individual benefit filtering
   
-  View(SeparationRates)
+  #View(SeparationRates)
   #Custom function to calculate cumulative future values
   
   #colnames(SalaryGrowth)[2] <- "YOS"
@@ -469,14 +469,14 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #Survival Probability and Annuity Factor
   #View(MortalityTable)
   AnnuityF <- function(data = MortalityTable,
-                       ColaType = "Simple"){
+                       COLA = COLA){
     
     AnnFactorData <- MortalityTable %>% 
       select(Age, entry_age, mort) %>%
       group_by(entry_age) %>% 
       mutate(surv = cumprod(1 - lag(mort, default = 0)),
              surv_DR = surv/(1+ARR)^(Age - entry_age),
-             surv_DR_COLA = surv_DR * ifelse(ColaType == "Simple", 1+(COLA * (Age - entry_age)), 1+((COLA)^(Age - entry_age))),
+             surv_DR_COLA = surv_DR * (1+COLA)^(Age - entry_age),
              AnnuityFactor = rev(cumsum(rev(surv_DR_COLA)))/surv_DR_COLA) %>% 
       ungroup()
     
@@ -485,7 +485,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   }
   
   AnnFactorData <- AnnuityF(data = MortalityTable,
-                            ColaType = "Compound")
+                            COLA = COLA)
   #View(AnnFactorData)
   ### Implement $500 cap?
   
@@ -688,19 +688,19 @@ SalaryData2 <- data.frame(
                NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
-               ARR = 0.0725, #can set manually
-               COLA = 0.01, #can set manually
-               BenMult = 0.018, #can set manually
+               ARR = 0.074, #can set manually
+               COLA = 0.005, #can set manually
+               BenMult = 0.025, #can set manually
                DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.05, #can set manually
                DC_return = 0.05)
 )
 ################################
 # Total NC 2021 val. = 10.89% (7.4% DR)
-# Model NC = 10.95% (7.4% DR)
-# Hybrid DB NC Model = 8.83% (7.25% DR)
+# Model NC = 11.30% (7.4% DR)
+# Hybrid DB NC Model = 9.36% (7.25% DR)
 
-#View(SalaryData2)
+View(SalaryData2)
 #data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
 
 #Save outputs
