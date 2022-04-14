@@ -685,17 +685,20 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
-               NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+               NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
-               ARR = 0.07, #can set manually
+               ARR = 0.0725, #can set manually
                COLA = 0.01, #can set manually
-               BenMult = 0.0182, #can set manually
-               DC_EE_cont =  0.09, #can set manually
+               BenMult = 0.018, #can set manually
+               DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.05, #can set manually
                DC_return = 0.05)
 )
 ################################
+# Total NC 2021 val. = 10.89% (7.4% DR)
+# Model NC = 10.95% (7.4% DR)
+# Hybrid DB NC Model = 8.83% (7.25% DR)
 
 #View(SalaryData2)
 #data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
