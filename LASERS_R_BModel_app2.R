@@ -99,7 +99,7 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 
 ################################# Function
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
-                         ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
+                         ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27, DB_EE_cont = DB_EE_cont,
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
   employee <- employee
@@ -690,12 +690,25 @@ SalaryData2 <- data.frame(
                ARR = 0.0725, #can set manually
                COLA = 0.005, #can set manually
                BenMult = 0.025, #can set manually
+               DB_EE_cont = 0.04,
                DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.03, #can set manually
                DC_return = 0.0525)
 )
 #View(SalaryData2)
 
+
+palette_reason <- list(Orange="#FF6633",
+                       LightOrange="#FF9900",
+                       DarkGrey="#333333",
+                       LightGrey= "#CCCCCC",
+                       SpaceGrey ="#A69FA1",
+                       DarkBlue="#0066CC",
+                       GreyBlue= "#6699CC",
+                       Yellow= "#FFCC33",
+                       LightBlue = "#66B2FF",
+                       SatBlue = "#3366CC",
+                       Green = "#669900",LightGreen = "#00CC66", Red = "#CC0000",LightRed="#FF0000")
 
 
 #View(SalaryData2)
@@ -759,6 +772,7 @@ ui <- fluidPage(
                  sliderInput("dr", "Discount Rate (%)", min = 4.25, max = 8.25, step = 0.25, value = 7.25),
                  sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.25, value = 1),
                  sliderInput("mult", "Benefit Multiplier", min = 1, max = 2.8, step = 0.1, value = 1.8),
+                 sliderInput("DB_EEcontr", "DB EE Contribution (%)", min = 4, max = 15, step = 0.05, value = 4),
                  sliderInput("DCreturn", "DC Return Rate (%)",min = 3.25, max = 8.25, step = 0.25, value = 5.25),
                  sliderInput("DC_EEcontr", "DC EE Contribution (%)", min = 0, max = 14, step = 0.25, value = 4),
                  sliderInput("DC_ERcontr", "DC ER Contribution (%)", min = 0, max = 14, step = 0.25, value = 3),
@@ -810,6 +824,7 @@ server <- function(input, output, session){
                    ARR = 0.0725, #can set manually
                    COLA = 0.005, #can set manually
                    BenMult = 0.025, #can set manually
+                   DB_EE_cont =  input$DB_EEcontr/100, #added
                    DC_EE_cont =  input$DC_EEcontr/100, #can set manually
                    DC_ER_cont = input$DC_ERcontr/100, #can set manually
                    DC_return = input$DCreturn/100#can set manually
@@ -842,6 +857,7 @@ server <- function(input, output, session){
                    ARR = input$dr/100, #can set manually
                    COLA = input$cola/100, #can set manually
                    BenMult = input$mult/100, #can set manually
+                   DB_EE_cont =  input$DB_EEcontr/100, #can set manually
                    DC_EE_cont =  input$DC_EEcontr/100, #can set manually
                    DC_ER_cont = input$DC_ERcontr/100, #can set manually
                    DC_return = input$DCreturn/100#can set manually

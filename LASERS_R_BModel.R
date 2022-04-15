@@ -680,8 +680,10 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 }
 
 #### BenefitModel ####
+#######################
+#For 2018 hybrid change Norm Ret Age to 65
 
-
+#NormalRetAgeI <- 65
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
@@ -689,9 +691,9 @@ SalaryData2 <- data.frame(
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
                ARR = 0.0725, #can set manually
-               COLA = 0.009, #can set manually
+               COLA = 0.01, #can set manually
                DB_EE_cont = 0.04,#ADDED
-               BenMult = 0.015, #can set manually
+               BenMult = 0.018, #can set manually
                DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.03, #can set manually
                DC_return = 0.0525)
