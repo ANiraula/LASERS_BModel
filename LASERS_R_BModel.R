@@ -100,6 +100,7 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 ################################# Function
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                          ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
+                         DB_EE_cont =  DB_EE_cont,
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
   employee <- employee
@@ -259,9 +260,9 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                                  #else{ScaleMultipleFeMaleGeneralRet}
       ),
       mort_male = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                         RP_2014_ann_employee_male_blend *  1.280, ifelse(Age >= 62, RP_2014_ann_employee_male_blend * 1.280,RP_2014_employee_male_blend*0.978)) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
+                         RP_2014_ann_employee_male_blend *  1.280, RP_2014_employee_male_blend*0.978) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
       mort_female = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                           RP_2014_ann_employee_female_blend *  1.1417, ifelse(Age >= 62, RP_2014_ann_employee_female_blend * 1.1417, RP_2014_employee_female_blend * 1.144)) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
+                           RP_2014_ann_employee_female_blend *  1.1417, RP_2014_employee_female_blend * 1.144) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
       mort = (mort_male + mort_female)/2) %>% 
       #Recalcualting average
       filter(Years >= 2021, entry_age >= 20) %>% 
@@ -476,7 +477,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       group_by(entry_age) %>% 
       mutate(surv = cumprod(1 - lag(mort, default = 0)),
              surv_DR = surv/(1+ARR)^(Age - entry_age),
-             surv_DR_COLA = surv_DR * (1+COLA)^(Age - entry_age),
+             surv_DR_COLA = surv_DR * ((1+COLA)^(Age - entry_age)),
              AnnuityFactor = rev(cumsum(rev(surv_DR_COLA)))/surv_DR_COLA) %>% 
       ungroup()
     
@@ -684,12 +685,13 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
-               NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+               NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
                ARR = 0.0725, #can set manually
-               COLA = 0.01, #can set manually
-               BenMult = 0.018, #can set manually
+               COLA = 0.009, #can set manually
+               DB_EE_cont = 0.04,#ADDED
+               BenMult = 0.015, #can set manually
                DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.03, #can set manually
                DC_return = 0.0525)
@@ -700,7 +702,7 @@ SalaryData2 <- data.frame(
 # Total NC 2021 val. = 10.89% (7.4% DR)
 # Model NC = 0.1112447 (7.4% DR) - 0.5% COLA
 #Adj from 2020 LASERS model (Old * Adj = New) 0.965594614809274
-# Hybrid DB NC Model = 8.952% (7.25% DR)
+# Hybrid DB NC Model = 8.677249% (7.25% DR)
 
 #Use 2020 model adj to estimate legacy model NC
 #0.1112447/0.965594614809274
@@ -709,11 +711,10 @@ SalaryData2 <- data.frame(
 #0.1142801 #Model weighted
 #0.1089 #Val
 
-#0.1057/0.1130609
 #0.1089/0.1142801
 #ADJUSTMENT from Model to Val = 0.9529218
 
-#View(SalaryData2)# * 0.9529218)
+View(SalaryData2*0.9529218)
 #2022: 0.08780854
 #2018: 0.07720575
 #data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
