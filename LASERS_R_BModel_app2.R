@@ -15,16 +15,7 @@ library(dplyr)
 library(zoo)
 library(dplyr)
 library(profvis)
-library(shiny)
-library(plotly)
-library(data.table)
-library(shiny)
-library(shinyWidgets)
-library(shinymanager)
 #setwd(getwd())
-#FileName <- 'NDPERS_BM_Inputs.xlsx'
-library(readxl)
-library(httr)
 
 #### Start the Timing
 #profvis({
@@ -58,7 +49,7 @@ tier <- 3
 #Early retirement" Either Age 55 + 25 YOS or Age 60
 
 #FileName <- 'NDPERS_BM_Inputs.xlsx'
-FileName <- 'LASERS_BM_Inputs.xlsx'
+FileName <- '/Users/anilniraula/LASERS_BModel/LASERS_BM_Inputs.xlsx'
 #FileName <- "https://github.com/ANiraula/NDPERS_BModel/blob/main/NDPERS_BM_Inputs.xlsx?raw=true"
 
 #urlfile="https://github.com/ANiraula/NDPERS_BModel/blob/main/NDPERS_BM_Inputs.xlsx?raw=true"
@@ -68,8 +59,8 @@ YearStart <- 2021
 Age <- 20:120
 YOS <- 0:100
 RetirementAge <- 20:120
-Years <- 2011:2121    #(why 2121? Because 120 - 20 + 2021 = 2121)
-#Updated from 2010 to 2011
+Years <- 2015:2121    #(why 2121? Because 120 - 20 + 2021 = 2121)
+#Updated from 2011 to 2015
 
 #Assigning individual  Variables
 model_inputs <- read_excel(FileName, sheet = 'Main')
@@ -124,7 +115,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     }
   #View(TerminationRateBefore10)
   
-  
   ### Automate into a package ###
   
   cumFV <- function(interest, cashflow){
@@ -153,7 +143,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI) |
                #(YOS + Age >= NormalRetRule & YOS >= NormalYOSI) |
-               (Age >= ReduceRetAge & YOS >= ReduceRetYOS), TRUE, FALSE)} else{
+               (YOS >= ReduceRetYOS), TRUE, FALSE)} else{
                  #CLass II legacy rule
                  ifelse((Age >= NormalRetAgeII & YOS >= (NormalYOSI-3)) |
                           (YOS >= NormalYOSII) |
@@ -178,7 +168,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI), "Normal No Rule of 90",
              #ifelse((YOS + Age >= NormalRetRule & YOS >= NormalYOSI & Age < NormalRetAgeI), "Normal With Rule of 90",
-             ifelse((Age >= ReduceRetAge & YOS >= ReduceRetYOS), "Reduced","No"))}
+             ifelse((YOS >= ReduceRetYOS), "Reduced","No"))}
     #CLass II Legacy
     else{
       ifelse(Age >= NormalRetAgeII & YOS >= (NormalYOSI-3), "Normal No Rule of 90", # Means No YOS -> Age 65
@@ -269,9 +259,9 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                                  #else{ScaleMultipleFeMaleGeneralRet}
       ),
       mort_male = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                         RP_2014_ann_employee_male_blend *  1.280, RP_2014_employee_male_blend*0.978) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
+                         RP_2014_ann_employee_male_blend *  1.280, ifelse(Age >= 62, RP_2014_ann_employee_male_blend * 1.280,RP_2014_employee_male_blend*0.978)) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
       mort_female = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                           RP_2014_ann_employee_female_blend * 1.144,  RP_2014_employee_female_blend * 1.35) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
+                           RP_2014_ann_employee_female_blend *  1.1417, ifelse(Age >= 62, RP_2014_ann_employee_female_blend * 1.1417, RP_2014_employee_female_blend * 1.144)) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
       mort = (mort_male + mort_female)/2) %>% 
       #Recalcualting average
       filter(Years >= 2021, entry_age >= 20) %>% 
@@ -327,6 +317,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #filter out the necessary variables
   MortalityTable <- MortalityTable %>% select(Age, Years, entry_age, mort) %>% 
     arrange(entry_age) 
+  
   
   ######################
   ######################
@@ -437,10 +428,9 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       ungroup()
   }
   #Filter out unecessary values
-  #View(SeparationRates)
   SeparationRates <- SeparationRates %>% select(Age, YOS, RemainingProb, SepProb)#Adding "YearsFirstRetire" for individual benefit filtering
   
-  
+  #View(SeparationRates)
   #Custom function to calculate cumulative future values
   
   #colnames(SalaryGrowth)[2] <- "YOS"
@@ -516,7 +506,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   ### 2. Calculating Years between Early Retirement & Normal Retirement
   ### 3. Retirement Type
   ### 4. A benefit that begins before age 65 (or Rule of 90, if earlier) is reduced by 2/3 of one percent for each month before the earlier of age 65 or the age at which the Rule of 90 is met.
-  
   #Add entry_age to AnnFactorData + keep toNormRetYears
   ########
   ReducedFactor <- expand_grid(Age, YOS) %>% 
@@ -558,7 +547,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #### Saving results into ReducedFactor 
   
   ### Updated* ###
-  #((2/3*12/100) Per Years untill Normal Retirement (if qualifies for Reduced)) 
+  #((2/3*12/100) Per Years until Normal Retirement (if qualifies for Reduced)) 
   
   ##Adjusting code to use calculated YearsToNormRet column for early ret. penalties
   # ReducedFactor <- ReducedFactor %>% 
@@ -640,7 +629,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   
   ######### Graphing SINGLE ENTRY AGE + RETENTION
   
-  # #View(SalaryData2)
+  #View(SalaryData2)
   
   
   ########## Normal Cost #######

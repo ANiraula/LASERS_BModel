@@ -59,8 +59,8 @@ YearStart <- 2021
 Age <- 20:120
 YOS <- 0:100
 RetirementAge <- 20:120
-Years <- 2011:2121    #(why 2121? Because 120 - 20 + 2021 = 2121)
-#Updated from 2010 to 2011
+Years <- 2015:2121    #(why 2121? Because 120 - 20 + 2021 = 2121)
+#Updated from 2011 to 2015
 
 #Assigning individual  Variables
 model_inputs <- read_excel(FileName, sheet = 'Main')
@@ -143,7 +143,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI) |
                #(YOS + Age >= NormalRetRule & YOS >= NormalYOSI) |
-               (Age >= ReduceRetAge & YOS >= ReduceRetYOS), TRUE, FALSE)} else{
+               (YOS >= ReduceRetYOS), TRUE, FALSE)} else{
                  #CLass II legacy rule
                  ifelse((Age >= NormalRetAgeII & YOS >= (NormalYOSI-3)) |
                           (YOS >= NormalYOSII) |
@@ -168,7 +168,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI), "Normal No Rule of 90",
              #ifelse((YOS + Age >= NormalRetRule & YOS >= NormalYOSI & Age < NormalRetAgeI), "Normal With Rule of 90",
-                    ifelse((Age >= ReduceRetAge & YOS >= ReduceRetYOS), "Reduced","No"))}
+                    ifelse((YOS >= ReduceRetYOS), "Reduced","No"))}
     #CLass II Legacy
     else{
       ifelse(Age >= NormalRetAgeII & YOS >= (NormalYOSI-3), "Normal No Rule of 90", # Means No YOS -> Age 65
@@ -261,7 +261,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       mort_male = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
                          RP_2014_ann_employee_male_blend *  1.280, ifelse(Age >= 62, RP_2014_ann_employee_male_blend * 1.280,RP_2014_employee_male_blend*0.978)) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
       mort_female = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                           RP_2014_ann_employee_female_blend *  1.280, ifelse(Age >= 62, RP_2014_ann_employee_female_blend * 1.144, RP_2014_employee_female_blend * 1.35)) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
+                           RP_2014_ann_employee_female_blend *  1.1417, ifelse(Age >= 62, RP_2014_ann_employee_female_blend * 1.1417, RP_2014_employee_female_blend * 1.144)) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
       mort = (mort_male + mort_female)/2) %>% 
       #Recalcualting average
       filter(Years >= 2021, entry_age >= 20) %>% 
@@ -506,7 +506,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   ### 2. Calculating Years between Early Retirement & Normal Retirement
   ### 3. Retirement Type
   ### 4. A benefit that begins before age 65 (or Rule of 90, if earlier) is reduced by 2/3 of one percent for each month before the earlier of age 65 or the age at which the Rule of 90 is met.
-  
   #Add entry_age to AnnFactorData + keep toNormRetYears
   ########
   ReducedFactor <- expand_grid(Age, YOS) %>% 
@@ -548,7 +547,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #### Saving results into ReducedFactor 
   
   ### Updated* ###
-  #((2/3*12/100) Per Years untill Normal Retirement (if qualifies for Reduced)) 
+  #((2/3*12/100) Per Years until Normal Retirement (if qualifies for Reduced)) 
   
   ##Adjusting code to use calculated YearsToNormRet column for early ret. penalties
   # ReducedFactor <- ReducedFactor %>% 
@@ -630,7 +629,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   
   ######### Graphing SINGLE ENTRY AGE + RETENTION
   
-  # #View(SalaryData2)
+  #View(SalaryData2)
   
   
   ########## Normal Cost #######
@@ -685,22 +684,38 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
-               NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
+               NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
-               ARR = 0.074, #can set manually
-               COLA = 0.005, #can set manually
-               BenMult = 0.025, #can set manually
+               ARR = 0.0725, #can set manually
+               COLA = 0.01, #can set manually
+               BenMult = 0.018, #can set manually
                DC_EE_cont =  0.04, #can set manually
-               DC_ER_cont = 0.05, #can set manually
-               DC_return = 0.05)
+               DC_ER_cont = 0.03, #can set manually
+               DC_return = 0.0525)
 )
+
+#View(SalaryData2)
 ################################
 # Total NC 2021 val. = 10.89% (7.4% DR)
-# Model NC = 11.30% (7.4% DR)
-# Hybrid DB NC Model = 9.36% (7.25% DR)
+# Model NC = 0.1112447 (7.4% DR) - 0.5% COLA
+#Adj from 2020 LASERS model (Old * Adj = New) 0.965594614809274
+# Hybrid DB NC Model = 8.952% (7.25% DR)
 
-View(SalaryData2)
+#Use 2020 model adj to estimate legacy model NC
+#0.1112447/0.965594614809274
+
+#(1546913656*0.1152085+473166188* 0.1112447)/(1546913656+473166188)
+#0.1142801 #Model weighted
+#0.1089 #Val
+
+#0.1057/0.1130609
+#0.1089/0.1142801
+#ADJUSTMENT from Model to Val = 0.9529218
+
+#View(SalaryData2)# * 0.9529218)
+#2022: 0.08780854
+#2018: 0.07720575
 #data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
 
 #Save outputs
