@@ -126,6 +126,8 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     return(cumvalue)
   }
   
+  #Rule for 2018 Hybrid
+  NormalRetAgeI <- ifelse(BenMult == 0.015,65, 62)
   ### Adding scaling factors
   #scale.act.male <- 0.92 
   #scale.ret.male <- 1.03
@@ -772,7 +774,7 @@ y_max <- max(SalaryData2$PVPenWealth)
 pwealth <- ggplot(SalaryData2, aes(Age,PVPenWealth/1000, fill = "DB Accrual Pattern"))+
   geom_line(aes(group = 1,
                 text = paste0("Age: ", Age,
-                              "<br>DB Pension Wealth: $",round(PVPenWealth/1000,1), " Thousands")),size = 1.25, color = palette_reason$SatBlue)+
+                              "<br>DB Wealth: $",round(PVPenWealth/1000,1), " Thousands")),size = 1.25, color = palette_reason$SatBlue)+
   geom_line(aes(Age, RealDC_balance/1000,
                 group = 2,
                 text = paste0("Age: ", Age,
