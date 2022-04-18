@@ -127,7 +127,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   }
   
   #Rule for 2018 Hybrid
-  NormalRetAgeI <- ifelse(BenMult == 0.015,65, 62)
+  NormalRetAgeI <- ifelse(BenMult <= 0.015, 65, 62)
   ### Adding scaling factors
   #scale.act.male <- 0.92 
   #scale.ret.male <- 1.03
@@ -689,7 +689,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
-               NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
+               NCost = F, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
                ARR = 0.0725, #can set manually
@@ -718,7 +718,8 @@ SalaryData2 <- data.frame(
 #0.1089/0.1142801
 #ADJUSTMENT from Model to Val = 0.9529218
 
-View(SalaryData2*0.9529218)
+#View(SalaryData2*0.9529218)
+
 #2022: 0.08780854
 #2018: 0.07720575
 #data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
@@ -759,7 +760,7 @@ palette_reason <- list(Orange="#FF6633",
                        SatBlue = "#3366CC",
                        Green = "#669900",LightGreen = "#00CC66", Red = "#CC0000",LightRed="#FF0000")
 
-##############
+######################################################################################################
 #
 #View(SalaryData2)
 EntryAge <- 27
@@ -919,7 +920,6 @@ ggplotly(pwealth, tooltip = c("text")) %>%
 #     labs(caption = paste("reason.org/pensions"))
 # 
 # #### Secondary axis
-# 
 # # ax2 <- list(
 # #   overlaying = "y",
 # #   side = "right",

@@ -213,10 +213,10 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     rename(MP_ultimate_female = MP_female) %>% 
     select(-Years)
   
-  
   ##Mortality calculations
   #Expand grid for ages 20-120 and years 2010 to 2121 (why 2121? Because 120 - 20 + 2021 = 2121)
   MortalityTable <- expand_grid(Age, Years)
+  #View(MortalityTable)
   
   SurvivalRates <- SurvivalRates %>% mutate_all(as.numeric)   #why do we need this step?
   ##### Mortality Function #####
@@ -256,14 +256,14 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
              YOS = Age - entry_age) %>% 
       group_by(Age) %>%
       
-      #MPcumprod is the cumulative product of (1 - MP rates), starting from 2011. We use it later so make life easy and calculate now
+      #MPcumprod is the cumulative product of (1 - MP rates), starting from 2015. We use it later so make life easy and calculate now
       mutate(MPcumprod_male = cumprod(1 - MaleMP_final
                                       # if(employee == "Blend"){ScaleMultipleMaleBlendRet}
                                       #else if(employee == "Teachers"){ScaleMultipleMaleTeacherRet}
                                       #else{ScaleMultipleMaleGeneralRet}
       ),
-      #Started mort. table from 2011 (instead of 2010) 
-      #to cumsum over 2011+ & then multiply by 2010 MP-2019
+      #Started mort. table from 2015
+      #to cumsum over 2015+ & then multiply RP-2014 by MP-2018
       #removed /(1 - MaleMP_final[Years == 2010])
       MPcumprod_female = cumprod(1 - FemaleMP_final
                                  #if(employee == "Blend"){ScaleMultipleFeMaleBlendRet}
@@ -710,6 +710,10 @@ SalaryData2 <- data.frame(
 
 #View(SalaryData2*0.9529218)
 
+#Current DB - NC 10.9% (No Cola)
+#Alt DB - NC 11.4% (1% Cola) = 0.5 pct point
+#Alt DB - NC 11.87% (2% Cola) = 1 pct point
+
 
 palette_reason <- list(Orange="#FF6633",
                        LightOrange="#FF9900",
@@ -784,7 +788,7 @@ ui <- fluidPage(
                  #sliderInput("interest", "Contribution Interest", min = 0.02, max = 0.08, step = 0.005, value = 0.065),
                  sliderInput("dr", "Discount Rate (%) --------------------------------------------", min = 4.25, max = 8.25, step = 0.25, value = 7.25),
                  sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.25, value = 1),
-                 sliderInput("mult", "Benefit Multiplier", min = 1, max = 2.8, step = 0.1, value = 1.8),
+                 sliderInput("mult", "Benefit Multiplier (%)", min = 1, max = 2.8, step = 0.1, value = 1.8),
                  sliderInput("DB_EEcontr", "DB EE Contribution (%)", min = 2, max = 12, step = 0.05, value = 4),
                  sliderInput("DCreturn", "DC Return Rate (%) --------------------------------------------",min = 3.25, max = 8.25, step = 0.25, value = 5.25),
                  sliderInput("DC_EEcontr", "DC EE Contribution (%)", min = 0, max = 14, step = 0.25, value = 4),
@@ -953,12 +957,17 @@ server <- function(input, output, session){
      geom_line(aes(SalaryData3$Age, SalaryData3$PVPenWealth/1000,
                     group = 2,
                     text = paste0("Age: ", Age,
-                                  "<br>Hybrid DB Wealth: $",round(SalaryData3$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "2022 Hybrid DB"), size = 1, color = palette_reason$LightBlue,linetype=3)+
+                                  "<br>2022 Hybrid DB Wealth: $",round(SalaryData3$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "2022 Hybrid DB"), size = 1, color = palette_reason$LightBlue,linetype=3)+
     
       geom_line(aes(SalaryData4$Age, SalaryData4$RealHybridWealth/1000,
                     group = 2,
                     text = paste0("Age: ", Age,
                                   "<br>2018 Hybrid DB/DC Wealth (", DC_return*100,"% Return & ", (input$mult-0.3),"% Mult): $", round(SalaryData4$RealHybridWealth/1000,1), " Thousands"),fill = "2018 Hybrid DB/DC"), size = 1, color = palette_reason$SpaceGrey)+
+      geom_line(aes(SalaryData4$Age, SalaryData4$PVPenWealth/1000,
+                      group = 2,
+                      text = paste0("Age: ", Age,
+                                    "<br>2018 Hybrid DB Wealth: $",round(SalaryData4$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "2018 Hybrid DB"), size = 1, color = palette_reason$SpaceGrey,linetype=3)+
+        
 
       geom_line(aes(Age, RealDC_balance/1000,
                                               group = 2,
