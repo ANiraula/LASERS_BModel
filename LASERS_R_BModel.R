@@ -7,7 +7,7 @@
 ## NOTES
 ## 1. Benefits are limited to 100% of final average compensation.
 ## 2. Minimum benefit which is not less than $30.00 per month for each year of creditable service.
-
+#install.packages("shiny")
 rm(list = ls())
 library("readxl")
 library(tidyverse)
@@ -15,7 +15,16 @@ library(dplyr)
 library(zoo)
 library(dplyr)
 library(profvis)
+library(shiny)
+library(plotly)
+library(data.table)
+library(shiny)
+library(shinyWidgets)
+library(shinymanager)
 #setwd(getwd())
+#FileName <- 'NDPERS_BM_Inputs.xlsx'
+library(readxl)
+library(httr)
 
 #### Start the Timing
 #profvis({
@@ -49,7 +58,7 @@ tier <- 3
 #Early retirement" Either Age 55 + 25 YOS or Age 60
 
 #FileName <- 'NDPERS_BM_Inputs.xlsx'
-FileName <- '/Users/anilniraula/LASERS_BModel/LASERS_BM_Inputs.xlsx'
+FileName <- 'LASERS_BM_Inputs.xlsx'
 #FileName <- "https://github.com/ANiraula/NDPERS_BModel/blob/main/NDPERS_BM_Inputs.xlsx?raw=true"
 
 #urlfile="https://github.com/ANiraula/NDPERS_BModel/blob/main/NDPERS_BM_Inputs.xlsx?raw=true"
@@ -100,9 +109,12 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 ################################# Function
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                          ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
-                         DB_EE_cont =  DB_EE_cont,
+                         NormalRetAgeI = NormalRetAgeI, ReduceRetAge = ReduceRetAge,
+                         DB_EE_cont =  DB_EE_cont, 
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
+  NormalRetAgeI <- NormalRetAgeI
+  ReduceRetAge <- ReduceRetAge
   employee <- employee
   tier <- tier
   
@@ -126,8 +138,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     return(cumvalue)
   }
   
-  #Rule for 2018 Hybrid
-  NormalRetAgeI <- ifelse(BenMult <= 0.015, 65, 62)
+  
   ### Adding scaling factors
   #scale.act.male <- 0.92 
   #scale.ret.male <- 1.03
@@ -156,7 +167,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     return(Check)
   }
   ####
-
+  
   
   ################
   # New rule: 3 Retirement Types
@@ -171,7 +182,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI), "Normal No Rule of 90",
              #ifelse((YOS + Age >= NormalRetRule & YOS >= NormalYOSI & Age < NormalRetAgeI), "Normal With Rule of 90",
-                    ifelse((YOS >= ReduceRetYOS), "Reduced","No"))}
+             ifelse((YOS >= ReduceRetYOS), "Reduced","No"))}
     #CLass II Legacy
     else{
       ifelse(Age >= NormalRetAgeII & YOS >= (NormalYOSI-3), "Normal No Rule of 90", # Means No YOS -> Age 65
@@ -204,10 +215,10 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     rename(MP_ultimate_female = MP_female) %>% 
     select(-Years)
   
-  
   ##Mortality calculations
   #Expand grid for ages 20-120 and years 2010 to 2121 (why 2121? Because 120 - 20 + 2021 = 2121)
   MortalityTable <- expand_grid(Age, Years)
+  #View(MortalityTable)
   
   SurvivalRates <- SurvivalRates %>% mutate_all(as.numeric)   #why do we need this step?
   ##### Mortality Function #####
@@ -247,14 +258,14 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
              YOS = Age - entry_age) %>% 
       group_by(Age) %>%
       
-      #MPcumprod is the cumulative product of (1 - MP rates), starting from 2011. We use it later so make life easy and calculate now
+      #MPcumprod is the cumulative product of (1 - MP rates), starting from 2015. We use it later so make life easy and calculate now
       mutate(MPcumprod_male = cumprod(1 - MaleMP_final
                                       # if(employee == "Blend"){ScaleMultipleMaleBlendRet}
                                       #else if(employee == "Teachers"){ScaleMultipleMaleTeacherRet}
                                       #else{ScaleMultipleMaleGeneralRet}
       ),
-      #Started mort. table from 2011 (instead of 2010) 
-      #to cumsum over 2011+ & then multiply by 2010 MP-2019
+      #Started mort. table from 2015
+      #to cumsum over 2015+ & then multiply RP-2014 by MP-2018
       #removed /(1 - MaleMP_final[Years == 2010])
       MPcumprod_female = cumprod(1 - FemaleMP_final
                                  #if(employee == "Blend"){ScaleMultipleFeMaleBlendRet}
@@ -275,7 +286,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     
   }
   
-
+  
   ##### Mortality Function #####
   
   MortalityTable <- mortality(data = MortalityTable,
@@ -372,15 +383,15 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       mutate(retirement_type = RetirementType(Age,YOS),
              
              SepRateMale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
-                                  #ifelse(
-                                         IsRetirementEligible(Age, YOS, tier = tier)==T, 
-                                         ifelse(YOS < 10, General10,ifelse(YOS < 25, General10_24,ifelse(YOS < 30, General25_29, General30))),#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-                                                ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
+               #ifelse(
+               IsRetirementEligible(Age, YOS, tier = tier)==T, 
+               ifelse(YOS < 10, General10,ifelse(YOS < 25, General10_24,ifelse(YOS < 30, General25_29, General30))),#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
              SepRateFemale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
                #ifelse(
-                                         IsRetirementEligible(Age, YOS, tier = tier)==T, 
-                                         ifelse(YOS < 10, General10,ifelse(YOS < 25, General10_24,ifelse(YOS < 30, General25_29, General30))),#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-                                         ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
+               IsRetirementEligible(Age, YOS, tier = tier)==T, 
+               ifelse(YOS < 10, General10,ifelse(YOS < 25, General10_24,ifelse(YOS < 30, General25_29, General30))),#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
              SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
       group_by(entry_age) %>% 
       mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
@@ -448,7 +459,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     ### Additions ###
     mutate(salary_increase = if(employee == "Blend"){salary_increase_yos_Blend}else if(employee == "Teacher"){
       salary_increase_yos_Teacher}else{salary_increase_yos_General})#Using 3 if statements for 3 EE types
-
+  
   
   #######################################
   #################
@@ -682,20 +693,20 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 }
 
 #### BenefitModel ####
-#######################
-#For 2018 hybrid change Norm Ret Age to 65
 
-#NormalRetAgeI <- 65
+
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
-               NCost = F, #(TRUE -- calculates GNC on original SalaryData)
+               NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
+               NormalRetAgeI = 62,
+               ReduceRetAge = 55,
                ARR = 0.0725, #can set manually
-               COLA = 0.01, #can set manually
-               DB_EE_cont = 0.04,#ADDED
-               BenMult = 0.018, #can set manually
+               COLA = 0.009, #can set manually
+               BenMult = 0.015, #can set manually
+               DB_EE_cont = 0.04,
                DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.03, #can set manually
                DC_return = 0.0525)
@@ -704,21 +715,21 @@ SalaryData2 <- data.frame(
 #View(SalaryData2)
 ################################
 # Total NC 2021 val. = 10.89% (7.4% DR)
-# Model NC = 0.1112447 (7.4% DR) - 0.5% COLA
+# Model NC = 0.1158533 (7.4% DR) - NoCOLA
 #Adj from 2020 LASERS model (Old * Adj = New) 0.965594614809274
 # Hybrid DB NC Model = 8.677249% (7.25% DR)
 
 #Use 2020 model adj to estimate legacy model NC
-#0.1112447/0.965594614809274
+#0.1158533/0.965594614809274
 
-#(1546913656*0.1152085+473166188* 0.1112447)/(1546913656+473166188)
-#0.1142801 #Model weighted
+#(1546913656*0.1199813+473166188* 0.1158533)/(1546913656+473166188)
+#0.1190144 #Model weighted
 #0.1089 #Val
 
-#0.1089/0.1142801
-#ADJUSTMENT from Model to Val = 0.9529218
+#0.1089/0.1190144
+#ADJUSTMENT from Model to Val = 0.8850011
 
-#View(SalaryData2*0.9529218)
+View(SalaryData2*0.9150153)
 
 #2022: 0.08780854
 #2018: 0.07720575

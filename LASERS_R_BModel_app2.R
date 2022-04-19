@@ -399,47 +399,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       ungroup()
     
     ## Class II legacy
-  }else{
-    SeparationRates <- SeparationRates %>% 
-      mutate(retirement_type = RetirementType(Age,YOS),
-             
-             SepRateMale = ifelse(retirement_type == "Normal No Rule of 90",if(employee == "Blend"){NormalMaleBlend.x}#Age >= 65
-                                  else if(employee == "Teachers"){NormalMaleTeacher.x}
-                                  else{NormalMaleGeneral.x},
-                                  ifelse(retirement_type == "Normal With Rule of 90", if(employee == "Blend"){NormalMaleBlend.y} #YOS >= 28
-                                         else if(employee == "Teachers"){NormalMaleTeacher.y}
-                                         else{NormalMaleGeneral.y},
-                                         ifelse(retirement_type == "Reduced", if(employee == "Blend"){ReducedMaleBlend}
-                                                else if(employee == "Teachers"){ReducedMaleTeacher}
-                                                else{ReducedMaleGeneral},#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-                                                ifelse(YOS < 11, 
-                                                       if(employee == "Blend"){TermBefore10BlendMale}
-                                                       else if(employee == "Teachers"){TermBefore10TeacherMale}
-                                                       else{TermBefore10GeneralMale}, 
-                                                       if(employee == "Blend"){TermAfter10BlendMale}
-                                                       else if(employee == "Teachers"){TermAfter10TeacherMale}
-                                                       else{TermAfter10GeneralMale})))),
-             SepRateFemale = ifelse(retirement_type == "Normal No Rule of 90", if(employee == "Blend"){NormalFeMaleBlend.x}
-                                    else if(employee == "Teachers"){NormalFeMaleTeacher.x}
-                                    else{NormalFeMaleGeneral.x},
-                                    ifelse(retirement_type == "Normal With Rule of 90", if(employee == "Blend"){NormalFeMaleBlend.y}
-                                           else if(employee == "Teachers"){NormalFeMaleTeacher.y}
-                                           else{NormalFeMaleGeneral.y},
-                                           ifelse(retirement_type == "Reduced", if(employee == "Blend"){ReducedFeMaleBlend}
-                                                  else if(employee == "Teachers"){ReducedFeMaleTeacher}
-                                                  else{ReducedFeMaleGeneral},#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-                                                  ifelse(YOS < 11, 
-                                                         if(employee == "Blend"){TermBefore10BlendFeMale}
-                                                         else if(employee == "Teachers"){TermBefore10TeacherFeMale}
-                                                         else{TermBefore10GeneralFeMale}, 
-                                                         if(employee == "Blend"){TermAfter10BlendFeMale}
-                                                         else if(employee == "Teachers"){TermAfter10TeacherFeMale}
-                                                         else{TermAfter10GeneralFeMale})))),
-             SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
-      group_by(entry_age) %>% 
-      mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
-             SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
-      ungroup()
   }
   #Filter out unecessary values
   SeparationRates <- SeparationRates %>% select(Age, YOS, RemainingProb, SepProb)#Adding "YearsFirstRetire" for individual benefit filtering
@@ -701,6 +660,8 @@ SalaryData2 <- data.frame(
                NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
+               NormalRetAgeI = 62,
+               ReduceRetAge = 40,
                ARR = 0.0725, #can set manually
                COLA = 0.01, #can set manually
                BenMult = 0.018, #can set manually
