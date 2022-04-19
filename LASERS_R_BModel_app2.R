@@ -7,7 +7,7 @@
 ## NOTES
 ## 1. Benefits are limited to 100% of final average compensation.
 ## 2. Minimum benefit which is not less than $30.00 per month for each year of creditable service.
-
+install.packages("shiny")
 rm(list = ls())
 library("readxl")
 library(tidyverse)
