@@ -7,7 +7,7 @@
 ## NOTES
 ## 1. Benefits are limited to 100% of final average compensation.
 ## 2. Minimum benefit which is not less than $30.00 per month for each year of creditable service.
-
+#install.packages("shiny")
 rm(list = ls())
 library("readxl")
 library(tidyverse)
@@ -68,8 +68,8 @@ YearStart <- 2021
 Age <- 20:120
 YOS <- 0:100
 RetirementAge <- 20:120
-Years <- 2011:2121    #(why 2121? Because 120 - 20 + 2021 = 2121)
-#Updated from 2010 to 2011
+Years <- 2015:2121    #(why 2121? Because 120 - 20 + 2021 = 2121)
+#Updated from 2011 to 2015
 
 #Assigning individual  Variables
 model_inputs <- read_excel(FileName, sheet = 'Main')
@@ -109,8 +109,12 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 ################################# Function
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                          ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
+                         NormalRetAgeI = NormalRetAgeI, ReduceRetAge = ReduceRetAge,
+                         DB_EE_cont =  DB_EE_cont, 
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
+  NormalRetAgeI <- NormalRetAgeI
+  ReduceRetAge <- ReduceRetAge
   employee <- employee
   tier <- tier
   
@@ -124,7 +128,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     }
   #View(TerminationRateBefore10)
   
-  
   ### Automate into a package ###
   
   cumFV <- function(interest, cashflow){
@@ -134,6 +137,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     }
     return(cumvalue)
   }
+  
   
   ### Adding scaling factors
   #scale.act.male <- 0.92 
@@ -153,7 +157,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI) |
                #(YOS + Age >= NormalRetRule & YOS >= NormalYOSI) |
-               (Age >= ReduceRetAge & YOS >= ReduceRetYOS), TRUE, FALSE)} else{
+               (YOS >= ReduceRetYOS), TRUE, FALSE)} else{
                  #CLass II legacy rule
                  ifelse((Age >= NormalRetAgeII & YOS >= (NormalYOSI-3)) |
                           (YOS >= NormalYOSII) |
@@ -178,7 +182,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     Check = if(tier == 3){
       ifelse((Age >= NormalRetAgeI & YOS >= NormalYOSI), "Normal No Rule of 90",
              #ifelse((YOS + Age >= NormalRetRule & YOS >= NormalYOSI & Age < NormalRetAgeI), "Normal With Rule of 90",
-             ifelse((Age >= ReduceRetAge & YOS >= ReduceRetYOS), "Reduced","No"))}
+             ifelse((YOS >= ReduceRetYOS), "Reduced","No"))}
     #CLass II Legacy
     else{
       ifelse(Age >= NormalRetAgeII & YOS >= (NormalYOSI-3), "Normal No Rule of 90", # Means No YOS -> Age 65
@@ -211,10 +215,10 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     rename(MP_ultimate_female = MP_female) %>% 
     select(-Years)
   
-  
   ##Mortality calculations
   #Expand grid for ages 20-120 and years 2010 to 2121 (why 2121? Because 120 - 20 + 2021 = 2121)
   MortalityTable <- expand_grid(Age, Years)
+  #View(MortalityTable)
   
   SurvivalRates <- SurvivalRates %>% mutate_all(as.numeric)   #why do we need this step?
   ##### Mortality Function #####
@@ -254,14 +258,14 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
              YOS = Age - entry_age) %>% 
       group_by(Age) %>%
       
-      #MPcumprod is the cumulative product of (1 - MP rates), starting from 2011. We use it later so make life easy and calculate now
+      #MPcumprod is the cumulative product of (1 - MP rates), starting from 2015. We use it later so make life easy and calculate now
       mutate(MPcumprod_male = cumprod(1 - MaleMP_final
                                       # if(employee == "Blend"){ScaleMultipleMaleBlendRet}
                                       #else if(employee == "Teachers"){ScaleMultipleMaleTeacherRet}
                                       #else{ScaleMultipleMaleGeneralRet}
       ),
-      #Started mort. table from 2011 (instead of 2010) 
-      #to cumsum over 2011+ & then multiply by 2010 MP-2019
+      #Started mort. table from 2015
+      #to cumsum over 2015+ & then multiply RP-2014 by MP-2018
       #removed /(1 - MaleMP_final[Years == 2010])
       MPcumprod_female = cumprod(1 - FemaleMP_final
                                  #if(employee == "Blend"){ScaleMultipleFeMaleBlendRet}
@@ -271,7 +275,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       mort_male = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
                          RP_2014_ann_employee_male_blend *  1.280, RP_2014_employee_male_blend*0.978) * MPcumprod_male,#* ScaleMultipleMaleGeneralRet}) 
       mort_female = ifelse(IsRetirementEligible(Age, YOS, tier = tier)==T,
-                           RP_2014_ann_employee_female_blend * 1.144,  RP_2014_employee_female_blend * 1.35) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
+                           RP_2014_ann_employee_female_blend *  1.1417, RP_2014_employee_female_blend * 1.144) * MPcumprod_female,# * ScaleMultipleFeMaleGeneralRet})
       mort = (mort_male + mort_female)/2) %>% 
       #Recalcualting average
       filter(Years >= 2021, entry_age >= 20) %>% 
@@ -327,6 +331,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #filter out the necessary variables
   MortalityTable <- MortalityTable %>% select(Age, Years, entry_age, mort) %>% 
     arrange(entry_age) 
+  
   
   ######################
   ######################
@@ -394,53 +399,11 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       ungroup()
     
     ## Class II legacy
-  }else{
-    SeparationRates <- SeparationRates %>% 
-      mutate(retirement_type = RetirementType(Age,YOS),
-             
-             SepRateMale = ifelse(retirement_type == "Normal No Rule of 90",if(employee == "Blend"){NormalMaleBlend.x}#Age >= 65
-                                  else if(employee == "Teachers"){NormalMaleTeacher.x}
-                                  else{NormalMaleGeneral.x},
-                                  ifelse(retirement_type == "Normal With Rule of 90", if(employee == "Blend"){NormalMaleBlend.y} #YOS >= 28
-                                         else if(employee == "Teachers"){NormalMaleTeacher.y}
-                                         else{NormalMaleGeneral.y},
-                                         ifelse(retirement_type == "Reduced", if(employee == "Blend"){ReducedMaleBlend}
-                                                else if(employee == "Teachers"){ReducedMaleTeacher}
-                                                else{ReducedMaleGeneral},#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-                                                ifelse(YOS < 11, 
-                                                       if(employee == "Blend"){TermBefore10BlendMale}
-                                                       else if(employee == "Teachers"){TermBefore10TeacherMale}
-                                                       else{TermBefore10GeneralMale}, 
-                                                       if(employee == "Blend"){TermAfter10BlendMale}
-                                                       else if(employee == "Teachers"){TermAfter10TeacherMale}
-                                                       else{TermAfter10GeneralMale})))),
-             SepRateFemale = ifelse(retirement_type == "Normal No Rule of 90", if(employee == "Blend"){NormalFeMaleBlend.x}
-                                    else if(employee == "Teachers"){NormalFeMaleTeacher.x}
-                                    else{NormalFeMaleGeneral.x},
-                                    ifelse(retirement_type == "Normal With Rule of 90", if(employee == "Blend"){NormalFeMaleBlend.y}
-                                           else if(employee == "Teachers"){NormalFeMaleTeacher.y}
-                                           else{NormalFeMaleGeneral.y},
-                                           ifelse(retirement_type == "Reduced", if(employee == "Blend"){ReducedFeMaleBlend}
-                                                  else if(employee == "Teachers"){ReducedFeMaleTeacher}
-                                                  else{ReducedFeMaleGeneral},#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-                                                  ifelse(YOS < 11, 
-                                                         if(employee == "Blend"){TermBefore10BlendFeMale}
-                                                         else if(employee == "Teachers"){TermBefore10TeacherFeMale}
-                                                         else{TermBefore10GeneralFeMale}, 
-                                                         if(employee == "Blend"){TermAfter10BlendFeMale}
-                                                         else if(employee == "Teachers"){TermAfter10TeacherFeMale}
-                                                         else{TermAfter10GeneralFeMale})))),
-             SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
-      group_by(entry_age) %>% 
-      mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
-             SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
-      ungroup()
   }
   #Filter out unecessary values
-  #View(SeparationRates)
   SeparationRates <- SeparationRates %>% select(Age, YOS, RemainingProb, SepProb)#Adding "YearsFirstRetire" for individual benefit filtering
   
-  
+  #View(SeparationRates)
   #Custom function to calculate cumulative future values
   
   #colnames(SalaryGrowth)[2] <- "YOS"
@@ -479,14 +442,14 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #Survival Probability and Annuity Factor
   #View(MortalityTable)
   AnnuityF <- function(data = MortalityTable,
-                       ColaType = "Simple"){
+                       COLA = COLA){
     
     AnnFactorData <- MortalityTable %>% 
       select(Age, entry_age, mort) %>%
       group_by(entry_age) %>% 
       mutate(surv = cumprod(1 - lag(mort, default = 0)),
              surv_DR = surv/(1+ARR)^(Age - entry_age),
-             surv_DR_COLA = surv_DR * ifelse(ColaType == "Simple", 1+(COLA * (Age - entry_age)), 1+((COLA)^(Age - entry_age))),
+             surv_DR_COLA = surv_DR * ((1+COLA)^(Age - entry_age)),
              AnnuityFactor = rev(cumsum(rev(surv_DR_COLA)))/surv_DR_COLA) %>% 
       ungroup()
     
@@ -495,7 +458,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   }
   
   AnnFactorData <- AnnuityF(data = MortalityTable,
-                            ColaType = "Compound")
+                            COLA = COLA)
   #View(AnnFactorData)
   ### Implement $500 cap?
   
@@ -516,7 +479,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   ### 2. Calculating Years between Early Retirement & Normal Retirement
   ### 3. Retirement Type
   ### 4. A benefit that begins before age 65 (or Rule of 90, if earlier) is reduced by 2/3 of one percent for each month before the earlier of age 65 or the age at which the Rule of 90 is met.
-  
   #Add entry_age to AnnFactorData + keep toNormRetYears
   ########
   ReducedFactor <- expand_grid(Age, YOS) %>% 
@@ -558,7 +520,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   #### Saving results into ReducedFactor 
   
   ### Updated* ###
-  #((2/3*12/100) Per Years untill Normal Retirement (if qualifies for Reduced)) 
+  #((2/3*12/100) Per Years until Normal Retirement (if qualifies for Reduced)) 
   
   ##Adjusting code to use calculated YearsToNormRet column for early ret. penalties
   # ReducedFactor <- ReducedFactor %>% 
@@ -640,7 +602,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   
   ######### Graphing SINGLE ENTRY AGE + RETENTION
   
-  # #View(SalaryData2)
+  #View(SalaryData2)
   
   
   ########## Normal Cost #######
@@ -695,18 +657,38 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
 SalaryData2 <- data.frame(
   BenefitModel(employee = "Blend", #"Teachers", "General"
                tier = 3, #tier 2 for Legacy
-               NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+               NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
+               NormalRetAgeI = 62,
+               ReduceRetAge = 40,
                ARR = 0.0725, #can set manually
-               COLA = 0.005, #can set manually
-               BenMult = 0.025, #can set manually
+               COLA = 0.01, #can set manually
+               BenMult = 0.018, #can set manually
+               DB_EE_cont = 0.04,
                DC_EE_cont =  0.04, #can set manually
                DC_ER_cont = 0.03, #can set manually
                DC_return = 0.0525)
 )
-#View(SalaryData2)
 
+#View(SalaryData2*0.9529218)
+
+#Current DB - NC 10.9% (No Cola)
+#Alt DB - NC 11.4% (1% Cola) = 0.5 pct point
+#Alt DB - NC 11.87% (2% Cola) = 1 pct point
+
+
+palette_reason <- list(Orange="#FF6633",
+                       LightOrange="#FF9900",
+                       DarkGrey="#333333",
+                       LightGrey= "#CCCCCC",
+                       SpaceGrey ="#A69FA1",
+                       DarkBlue="#0066CC",
+                       GreyBlue= "#6699CC",
+                       Yellow= "#FFCC33",
+                       LightBlue = "#66B2FF",
+                       SatBlue = "#3366CC",
+                       Green = "#669900",LightGreen = "#00CC66", Red = "#CC0000",LightRed="#FF0000")
 
 
 #View(SalaryData2)
@@ -756,23 +738,24 @@ palette_reason <- list(Orange="#FF6633",
 ##########
 
 ui <- fluidPage(
-  titlePanel("LASERS NPV Pension Wealth Accrual (V1.0)"),
+  titlePanel("LASERS NPV Pension Wealth Accrual (V2.0)"),
   # CODE BELOW: Add select inputs on state and plan_names to choose between different pension plans in Reason database
   theme = shinythemes::shinytheme("spacelab"),
   sidebarLayout(
     sidebarPanel(width = 3,
                  img(src = base64enc::dataURI(file = "https://raw.githubusercontent.com/ReasonFoundation/databaseR/master/apps/reason_logo.png"), width = 200, height = 50),
-                 selectInput("e.age", "Entry Age", choices = c(22, 27, 32, 37, 42, 47, 52, 57, 62, 67, 72), selected = 27),
+                 selectInput("e.age", "Entry Age", choices = c(22, 27, 32, 37, 42, 47, 52, 57, 62, 67, 72), selected = 37),
                  selectInput("ee","Employee Type", choices = c("Teachers", "General", "Blend"), selected = "Blend"),
                  radioGroupButtons("tier", "Employee Class", choices = c(2,3), selected = 3,
                                    status = "primary"),
                  #sliderInput("interest", "Contribution Interest", min = 0.02, max = 0.08, step = 0.005, value = 0.065),
-                 sliderInput("dr", "Discount Rate (%)", min = 4.25, max = 8.25, step = 0.25, value = 7.25),
-                 sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.25, value = 0.5),
-                 sliderInput("mult", "Benefit Multiplier", min = 0.8, max = 2.8, step = 0.25, value = 2.5),
-                 sliderInput("DCreturn", "DC Return Rate (%)",min = 3.25, max = 8.25, step = 0.25, value = 5.25),
+                 sliderInput("dr", "Discount Rate (%) --------------------------------------------", min = 4.25, max = 8.25, step = 0.25, value = 7.25),
+                 sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.25, value = 1),
+                 sliderInput("mult", "Benefit Multiplier (%)", min = 1, max = 2.8, step = 0.1, value = 1.8),
+                 sliderInput("DB_EEcontr", "DB EE Contribution (%)", min = 2, max = 12, step = 0.05, value = 4),
+                 sliderInput("DCreturn", "DC Return Rate (%) --------------------------------------------",min = 3.25, max = 8.25, step = 0.25, value = 5.25),
                  sliderInput("DC_EEcontr", "DC EE Contribution (%)", min = 0, max = 14, step = 0.25, value = 4),
-                 sliderInput("DC_ERcontr", "DC ER Contribution (%)", min = 0, max = 14, step = 0.25, value = 6),
+                 sliderInput("DC_ERcontr", "DC ER Contribution (%)", min = 0, max = 14, step = 0.25, value = 3),
                  
     ),
     mainPanel(
@@ -781,7 +764,8 @@ ui <- fluidPage(
                  ".shiny-output-error { visibility: hidden; }",
                  ".shiny-output-error:before { visibility: hidden; }"
       ),
-      
+      radioGroupButtons("comp", "DB & DC Components", choices = c("No","Yes"), selected = "No",
+                        status = "primary"),
       plotly::plotlyOutput("plot_pwealth"),
       #br(),
       #tags$div(htmlOutput("text1")),
@@ -808,22 +792,25 @@ server <- function(input, output, session){
   
   
   ben.model <- reactive({
-  
+    
     ##############
     
     ######## BenefitModel  #########
     SalaryData2 <- data.frame(
-          BenefitModel(employee = as.character(input$ee), #"Teachers", "General"
-                       tier = input$tier, #tier 2 for Legacy
-                       NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
-                       DC = TRUE, #(TRUE -- calculates DC using e.age)
-                       e.age = input$e.age, #for DC
-                       ARR = input$dr/100, #can set manually
-                       COLA = input$cola/100, #can set manually
-                       BenMult = input$mult/100, #can set manually
-                       DC_EE_cont =  input$DC_EEcontr/100, #can set manually
-                       DC_ER_cont = input$DC_ERcontr/100, #can set manually
-                       DC_return = input$DCreturn/100#can set manually
+      BenefitModel(employee = as.character(input$ee), #"Teachers", "General"
+                   tier = input$tier, #tier 2 for Legacy
+                   NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+                   DC = TRUE, #(TRUE -- calculates DC using e.age)
+                   e.age = input$e.age, #for DC
+                   NormalRetAgeI = 62,
+                   ReduceRetAge = 40,
+                   ARR = 0.0725, #can set manually
+                   COLA = 0.005, #can set manually
+                   BenMult = 0.025, #can set manually
+                   DB_EE_cont =  input$DB_EEcontr/100, #added
+                   DC_EE_cont =  input$DC_EEcontr/100, #can set manually
+                   DC_ER_cont = input$DC_ERcontr/100, #can set manually
+                   DC_return = input$DCreturn/100#can set manually
       )
     )
     
@@ -839,103 +826,196 @@ server <- function(input, output, session){
     
   })
   
-  # ben.model2 <- reactive({
-  #   
-  #   ##############
-  #   
-  #   ######## BenefitModel  #########
-  #   SalaryData3 <- data.frame(
-  #     BenefitModel(employee = as.character(input$ee), #"Teachers", "General"
-  #                  tier = input$tier, #tier 2 for Legacy
-  #                  NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
-  #                  DC = TRUE, #(TRUE -- calculates DC using e.age)
-  #                  e.age = input$e.age, #for DC
-  #                  ARR = input$dr/100, #can set manually
-  #                  COLA = input$cola/100, #can set manually
-  #                  BenMult = input$mult/100, #can set manually
-  #                  DC_EE_cont =  input$DC_EEcontr/100, #can set manually
-  #                  DC_ER_cont = input$DC_ERcontr/100, #can set manually
-  #                  DC_return = input$DCreturn/100#can set manually
-  #     )
-  #   )
-  #   
-  #   #View(SalaryData2)
-  #   e.age <- unique(SalaryData3$entry_age)
-  #   SalaryData3 <- data.frame(SalaryData3)
-  #   SalaryData3$entry_age <- as.numeric(SalaryData3$entry_age)
-  #   
-  #   SalaryData3$PVPenWealth <- as.numeric(SalaryData3$RealPenWealth)
-  #   
-  #   SalaryData3
-  #   
-  #   
-  # })
+  ben.model2 <- reactive({
+    
+    ##############
+    
+    ######## BenefitModel  #########
+    SalaryData3 <- data.frame(
+      BenefitModel(employee = as.character(input$ee), #"Teachers", "General"
+                   tier = input$tier, #tier 2 for Legacy
+                   NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+                   DC = TRUE, #(TRUE -- calculates DC using e.age)
+                   e.age = input$e.age, #for DC
+                   NormalRetAgeI = 62,
+                   ReduceRetAge = 40,
+                   ARR = input$dr/100, #can set manually
+                   COLA = input$cola/100, #can set manually
+                   BenMult = input$mult/100, #can set manually
+                   DB_EE_cont =  input$DB_EEcontr/100, #can set manually
+                   DC_EE_cont =  input$DC_EEcontr/100, #can set manually
+                   DC_ER_cont = input$DC_ERcontr/100, #can set manually
+                   DC_return = input$DCreturn/100#can set manually
+      )
+    )
+    
+    #View(SalaryData2)
+    e.age <- unique(SalaryData3$entry_age)
+    SalaryData3 <- data.frame(SalaryData3)
+    SalaryData3$entry_age <- as.numeric(SalaryData3$entry_age)
+    
+    SalaryData3$PVPenWealth <- as.numeric(SalaryData3$RealPenWealth)
+    
+    SalaryData3
+    
+    
+  })
+  
+  ben.model3 <- reactive({
+    
+    ##############
+    
+    ######## BenefitModel  #########
+    SalaryData4 <- data.frame(
+      BenefitModel(employee = as.character(input$ee), #"Teachers", "General"
+                   tier = input$tier, #tier 2 for Legacy
+                   NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
+                   DC = TRUE, #(TRUE -- calculates DC using e.age)
+                   e.age = input$e.age, #for DC
+                   NormalRetAgeI = 65,
+                   ReduceRetAge = 55,
+                   ARR = input$dr/100, #can set manually
+                   COLA = (input$cola-0.1)/100, #can set manually
+                   BenMult = (input$mult-0.3)/100, #can set manually
+                   DB_EE_cont = input$DB_EEcontr/100, #can set manually
+                   DC_EE_cont =  input$DC_EEcontr/100, #can set manually
+                   DC_ER_cont = input$DC_ERcontr/100, #can set manually
+                   DC_return = input$DCreturn/100#can set manually
+      )
+    )
+    #Check how 2018 input adjustments work
+    
+    #View((input$cola-0.1)/100)
+    #View((input$mult-0.3)/100)
+    #View(SalaryData2)
+    e.age <- unique(SalaryData4$entry_age)
+    SalaryData4 <- data.frame(SalaryData4)
+    SalaryData4$entry_age <- as.numeric(SalaryData4$entry_age)
+    
+    SalaryData4$PVPenWealth <- as.numeric(SalaryData4$RealPenWealth)
+    
+    SalaryData4
+    
+    
+  })
   
   output$plot_pwealth <- plotly::renderPlotly({
     
-    
-    
     SalaryData2 <- data.table(ben.model())
-   # SalaryData3 <- data.table(ben.model2())
-    
-    
+    SalaryData3 <- data.table(ben.model2())
+    SalaryData4 <- data.table(ben.model3())
     
     y_max <- max(SalaryData2$PVPenWealth)
     
     SalaryData2 <- data.frame(SalaryData2)
-    #SalaryData3 <- data.frame(SalaryData3)
+    SalaryData3 <- data.frame(SalaryData3)
+    SalaryData4 <- data.frame(SalaryData4)
     
     # View(SalaryData2 %>%
     #        select(entry_age, Age, YOS, RealPenWealth))
     #View(SalaryData2$DC_balance)
     
     ####
-    pwealth <- ggplot(SalaryData2, aes(Age,PVPenWealth/1000, fill = "DB Accrual Pattern"))+
-      geom_line(aes(group = 1,
-                    text = paste0("Age: ", Age,
-                                  "<br>DB Pension Wealth: $",round(PVPenWealth/1000,1), " Thousands")),size = 1.25, color = palette_reason$SatBlue)+
-      # geom_line(aes(SalaryData3$Age, SalaryData3$RealHybridWealth/1000,
-      #               group = 2,
-      #               text = paste0("Age: ", Age,
-      #                             "<br>Hybrid DB/DC Wealth at ", DC_return*100,"%: $", round(SalaryData3$RealHybridWealth/1000,1), " Thousands"),fill = "Hybrid DB/DC Accrual Pattern"), size = 1, color = palette_reason$Yellow)+
-      # 
-      # geom_line(aes(SalaryData3$Age, SalaryData3$PVPenWealth/1000,
-      #               group = 2,
-      #               text = paste0("Age: ", Age,
-      #                             "<br>Hybrid DB Pension Wealth: $",round(SalaryData3$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "Hybrid DB Accrual Pattern"), size = 1, color = palette_reason$LightBlue,linetype=3)+
-      # 
-
-      geom_line(aes(Age, RealDC_balance/1000,
-                    group = 2,
-                    text = paste0("Age: ", Age,
-                                  "<br>DC Wealth at ", input$DCreturn,"%: $", round(RealDC_balance/1000,1), " Thousands"),fill = "DC Accrual Pattern"), size = 1, color = palette_reason$Orange)+
-      geom_line(aes(Age, RemainingProb* (y_max/1000),
-                    group = 3,
-                    text = paste0("Age: ", Age,
-                                  "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share or Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
-      scale_x_continuous(breaks = seq(0, 80, by = 10),labels = function(x) paste0(x),
-                         name = paste0("Age (Entry age at ", input$e.age,")"), expand = c(0,0)) +
+    pwealth <-   if(input$comp == "Yes"){
       
-      scale_y_continuous(breaks = seq(0, y_max/1000, by = 100),limits = c(0, y_max/1000*1.1), labels = function(x) paste0("$",x),
-                         sec.axis = ggplot2::sec_axis(~./(y_max/100), 
-                                                      breaks = scales::pretty_breaks(n = 10), name = "Percent of Members Remaining",
-                                                      labels = function(b) paste0(round(b, 0), "%")),
-                         name = "Present Value of Pension Wealth ($Thousands)", expand = c(0,0)) +
-      theme_bw()+
-      theme(   #panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(), 
-        axis.line = element_line(colour = "black"),
-        plot.margin = margin(0.5, 0.5,0.5,0.5, "cm"),
-        axis.text.y = element_text(size=10, color = "black"),
-        axis.text.y.right = element_text(size=10, color = "black"),
-        axis.text.y.left = element_text(size=10, color = "black"),
-        axis.text.x = element_text(size=10, color = "black"),
-        legend.title = element_text(size = 9, colour = "black", face = "bold"),
-        legend.text = element_text(size = 9)
-      )+
-      theme(legend.direction = "vertical", 
-            legend.box = "horizontal", 
-            legend.position = "none")
+      ggplot(SalaryData2, aes(Age,PVPenWealth/1000, fill = "Current DB"))+
+        geom_line(aes(group = 1,
+                      text = paste0("Age: ", Age,
+                                    "<br> Current DB Wealth: $",round(PVPenWealth/1000,1), " Thousands")),size = 1.25, color = palette_reason$SatBlue)+
+        geom_line(aes(SalaryData3$Age, SalaryData3$RealHybridWealth/1000,
+                      group = 2,
+                      text = paste0("Age: ", Age,
+                                    "<br>Hybrid DB/DC Wealth at ", DC_return*100,"%: $", round(SalaryData3$RealHybridWealth/1000,1), " Thousands"),fill = "2022 Hybrid DB/DC"), size = 1, color = palette_reason$Orange)+
+        
+        geom_line(aes(SalaryData3$Age, SalaryData3$PVPenWealth/1000,
+                      group = 2,
+                      text = paste0("Age: ", Age,
+                                    "<br>2022 Hybrid DB Wealth: $",round(SalaryData3$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "2022 Hybrid DB"), size = 1, color = palette_reason$LightBlue,linetype=3)+
+        
+        geom_line(aes(SalaryData4$Age, SalaryData4$RealHybridWealth/1000,
+                      group = 2,
+                      text = paste0("Age: ", Age,
+                                    "<br>2018 Hybrid DB/DC Wealth (", DC_return*100,"% Return & ", (input$mult-0.3),"% Mult): $", round(SalaryData4$RealHybridWealth/1000,1), " Thousands"),fill = "2018 Hybrid DB/DC"), size = 1, color = palette_reason$SpaceGrey)+
+        geom_line(aes(SalaryData4$Age, SalaryData4$PVPenWealth/1000,
+                      group = 2,
+                      text = paste0("Age: ", Age,
+                                    "<br>2018 Hybrid DB Wealth: $",round(SalaryData4$PVPenWealth/1000,1), " Thousands"),size = 1.25, fill = "2018 Hybrid DB"), size = 1, color = palette_reason$SpaceGrey,linetype=3)+
+        
+        
+        geom_line(aes(Age, RealDC_balance/1000,
+                      group = 2,
+                      text = paste0("Age: ", Age,
+                                    "<br>Hybrid DC Wealth at ", input$DCreturn,"%: $", round(RealDC_balance/1000,1), " Thousands"),fill = "Hybrid DC (Same)"), size = 1, color = palette_reason$Orange,linetype=3)+
+        
+        
+        geom_line(aes(Age, RemainingProb* (y_max/1000),
+                      group = 3,
+                      text = paste0("Age: ", Age,
+                                    "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share or Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
+        scale_x_continuous(breaks = seq(0, 80, by = 10),labels = function(x) paste0(x),
+                           name = paste0("Age (Entry age at ", input$e.age,")"), expand = c(0,0)) +
+        
+        scale_y_continuous(breaks = seq(0, y_max/1000*1.1, by = 100),limits = c(0, y_max/1000*1.1), labels = function(x) paste0("$",x),
+                           sec.axis = ggplot2::sec_axis(~./(y_max/100), 
+                                                        breaks = scales::pretty_breaks(n = 10), name = "Percent of Members Remaining",
+                                                        labels = function(b) paste0(round(b, 0), "%")),
+                           name = "Present Value of Pension Wealth ($Thousands)", expand = c(0,0)) +
+        theme_bw()+
+        theme(   #panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(), 
+          axis.line = element_line(colour = "black"),
+          plot.margin = margin(0.5, 0.5,0.5,0.5, "cm"),
+          axis.text.y = element_text(size=10, color = "black"),
+          axis.text.y.right = element_text(size=10, color = "black"),
+          axis.text.y.left = element_text(size=10, color = "black"),
+          axis.text.x = element_text(size=10, color = "black"),
+          legend.title = element_text(size = 9, colour = "black", face = "bold"),
+          legend.text = element_text(size = 9)
+        )+
+        theme(legend.direction = "hotizontal", 
+              legend.box = "bottom")}else{
+                
+                ggplot(SalaryData2, aes(Age,PVPenWealth/1000, fill = "Current DB"))+
+                  geom_line(aes(group = 1,
+                                text = paste0("Age: ", Age,
+                                              "<br> Current DB Wealth: $",round(PVPenWealth/1000,1), " Thousands")),size = 1.25, color = palette_reason$SatBlue)+
+                  geom_line(aes(SalaryData3$Age, SalaryData3$RealHybridWealth/1000,
+                                group = 2,
+                                text = paste0("Age: ", Age,
+                                              "<br>Hybrid DB/DC Wealth at ", DC_return*100,"%: $", round(SalaryData3$RealHybridWealth/1000,1), " Thousands"),fill = "2022 Hybrid DB/DC"), size = 1, color = palette_reason$Orange)+
+                  
+                  
+                  geom_line(aes(SalaryData4$Age, SalaryData4$RealHybridWealth/1000,
+                                group = 2,
+                                text = paste0("Age: ", Age,
+                                              "<br>2018 Hybrid DB/DC Wealth (", DC_return*100,"% Return & ", (input$mult-0.3),"% Mult): $", round(SalaryData4$RealHybridWealth/1000,1), " Thousands"),fill = "2018 Hybrid DB/DC"), size = 1, color = palette_reason$SpaceGrey)+
+                  
+                  geom_line(aes(Age, RemainingProb* (y_max/1000),
+                                group = 3,
+                                text = paste0("Age: ", Age,
+                                              "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share or Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
+                  scale_x_continuous(breaks = seq(0, 80, by = 10),labels = function(x) paste0(x),
+                                     name = paste0("Age (Entry age at ", input$e.age,")"), expand = c(0,0)) +
+                  
+                  scale_y_continuous(breaks = seq(0, y_max/1000*1.1, by = 100),limits = c(0, y_max/1000*1.1), labels = function(x) paste0("$",x),
+                                     sec.axis = ggplot2::sec_axis(~./(y_max/100), 
+                                                                  breaks = scales::pretty_breaks(n = 10), name = "Percent of Members Remaining",
+                                                                  labels = function(b) paste0(round(b, 0), "%")),
+                                     name = "Present Value of Pension Wealth ($Thousands)", expand = c(0,0)) +
+                  theme_bw()+
+                  theme(   #panel.grid.major = element_blank(),
+                    panel.grid.minor = element_blank(), 
+                    axis.line = element_line(colour = "black"),
+                    plot.margin = margin(0.5, 0.5,0.5,0.5, "cm"),
+                    axis.text.y = element_text(size=10, color = "black"),
+                    axis.text.y.right = element_text(size=10, color = "black"),
+                    axis.text.y.left = element_text(size=10, color = "black"),
+                    axis.text.x = element_text(size=10, color = "black"),
+                    legend.title = element_text(size = 9, colour = "black", face = "bold"),
+                    legend.text = element_text(size = 9)
+                  )+
+                  theme(legend.direction = "hotizontal", 
+                        legend.box = "bottom")}
     
     
     ax2 <- list(
@@ -943,20 +1023,22 @@ server <- function(input, output, session){
       side = "right",
       showticklabels = TRUE,
       range = c(0,110),
-      title = "Members Remaining (%)",
+      title = "",
       automargin = F,
       showgrid = FALSE,
       titlefont = list(size = 13),
       tickvals = seq(0, 110, by = 25),
       tickfont = list(size = 13)) # I added this line
     
-    pwealth
+    #pwealth
     
     library(plotly)
-    ggplotly(pwealth, tooltip = c("text")) %>%
-      add_markers(yaxis = "y2") %>% # new line
-      layout(
-        yaxis2 = ax2)
+    ggplotly(pwealth, tooltip = c("text")) 
+    
+    # %>%
+    #   add_markers(yaxis = "y2") %>% # new line
+    #   layout(
+    #     yaxis2 = ax2)
     
   })
   # #Calculate normal cost rate for each entry age
