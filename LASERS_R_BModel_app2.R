@@ -7,7 +7,7 @@
 ## NOTES
 ## 1. Benefits are limited to 100% of final average compensation.
 ## 2. Minimum benefit which is not less than $30.00 per month for each year of creditable service.
-install.packages("shiny")
+#install.packages("shiny")
 rm(list = ls())
 library("readxl")
 library(tidyverse)
@@ -109,9 +109,12 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 ################################# Function
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                          ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
-                         DB_EE_cont =  DB_EE_cont,
+                         NormalRetAgeI = NormalRetAgeI, ReduceRetAge = ReduceRetAge,
+                         DB_EE_cont =  DB_EE_cont, 
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
+  NormalRetAgeI <- NormalRetAgeI
+  ReduceRetAge <- ReduceRetAge
   employee <- employee
   tier <- tier
   
@@ -135,8 +138,7 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
     return(cumvalue)
   }
   
-  #Rule for 2018 Hybrid
-  NormalRetAgeI <- ifelse(BenMult == 0.015,65, 62)
+  
   ### Adding scaling factors
   #scale.act.male <- 0.92 
   #scale.ret.male <- 1.03
@@ -839,6 +841,8 @@ server <- function(input, output, session){
                    NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                    DC = TRUE, #(TRUE -- calculates DC using e.age)
                    e.age = input$e.age, #for DC
+                   NormalRetAgeI = 62,
+                   ReduceRetAge = 40,
                    ARR = 0.0725, #can set manually
                    COLA = 0.005, #can set manually
                    BenMult = 0.025, #can set manually
@@ -872,6 +876,8 @@ server <- function(input, output, session){
                    NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                    DC = TRUE, #(TRUE -- calculates DC using e.age)
                    e.age = input$e.age, #for DC
+                   NormalRetAgeI = 62,
+                   ReduceRetAge = 40,
                    ARR = input$dr/100, #can set manually
                    COLA = input$cola/100, #can set manually
                    BenMult = input$mult/100, #can set manually
@@ -905,6 +911,8 @@ server <- function(input, output, session){
                      NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                      DC = TRUE, #(TRUE -- calculates DC using e.age)
                      e.age = input$e.age, #for DC
+                     NormalRetAgeI = 65,
+                     ReduceRetAge = 55,
                      ARR = input$dr/100, #can set manually
                      COLA = (input$cola-0.1)/100, #can set manually
                      BenMult = (input$mult-0.3)/100, #can set manually
@@ -914,6 +922,10 @@ server <- function(input, output, session){
                      DC_return = input$DCreturn/100#can set manually
         )
       )
+    #Check how 2018 input adjustments work
+      
+    #View((input$cola-0.1)/100)
+    #View((input$mult-0.3)/100)
     #View(SalaryData2)
     e.age <- unique(SalaryData4$entry_age)
     SalaryData4 <- data.frame(SalaryData4)
