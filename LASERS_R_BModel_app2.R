@@ -993,7 +993,7 @@ server <- function(input, output, session){
     geom_line(aes(Age, RemainingProb* (y_max/1000),
                   group = 3,
                   text = paste0("Age: ", Age,
-                                "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share or Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
+                                "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share of Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
     scale_x_continuous(breaks = seq(0, 80, by = 10),labels = function(x) paste0(x),
                        name = paste0("Age (Entry age at ", input$e.age,")"), expand = c(0,0)) +
     
