@@ -110,7 +110,7 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                          ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
                          NormalRetAgeI = NormalRetAgeI, ReduceRetAge = ReduceRetAge,
-                         DB_EE_cont =  DB_EE_cont, 
+                         DB_EE_cont =  DB_EE_cont, Retirement = "Baseline",
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
   NormalRetAgeI <- NormalRetAgeI
@@ -119,14 +119,14 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   tier <- tier
   
   ## Adding YOS & Age retirement tables for Class II
-  if(tier == 3){
+  if(tier == 3 & Retirement == "NRP"){
+    RetirementRates <- read_excel(FileName, sheet = 'NRP Retirement')}else if(tier == 3 & Retirement != "NRP"){
     RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates')}else{#Updated to SCRS*
       #Class Two members who attain age 65 before attaining 28 years of service
       RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates Age')
       #Class Two members who attain 28 years of service
       RetirementRates2 <- read_excel(FileName, sheet = 'Retirement Rates YOS')
     }
-  #View(TerminationRateBefore10)
   
   ### Automate into a package ###
   
@@ -377,8 +377,29 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   
   #If you're retirement eligible, use the retirement rates, then checks YOS < 5 and use the regular termination rates
   
-  if(tier == 3){
+  if(tier == 3 & Retirement == "NRP"){
     ## Class III new hires
+    SeparationRates <- SeparationRates %>% 
+      mutate(retirement_type = RetirementType(Age,YOS),
+             
+             SepRateMale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
+               #ifelse(
+               IsRetirementEligible(Age, YOS, tier = tier)==T, 
+               NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
+             SepRateFemale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
+               #ifelse(
+               IsRetirementEligible(Age, YOS, tier = tier)==T, 
+               NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
+             SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
+      group_by(entry_age) %>% 
+      mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
+             SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
+      ungroup()
+    
+    ## Class II legacy
+  }else if (tier == 3){
     SeparationRates <- SeparationRates %>% 
       mutate(retirement_type = RetirementType(Age,YOS),
              
@@ -397,8 +418,6 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
              SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
       ungroup()
-    
-    ## Class II legacy
   }else{
     SeparationRates <- SeparationRates %>% 
       mutate(retirement_type = RetirementType(Age,YOS),
@@ -700,9 +719,10 @@ SalaryData2 <- data.frame(
                tier = 3, #tier 2 for Legacy
                NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
-               e.age = 27, #for DC
+               e.age = 27, #for DCƒARR
                NormalRetAgeI = 62,
                ReduceRetAge = 40,
+               Retirement = "Baseline",
                ARR = 0.0725, #can set manually
                COLA = 0.01, #can set manually
                BenMult = 0.018, #can set manually
@@ -712,24 +732,26 @@ SalaryData2 <- data.frame(
                DC_return = 0.0525)
 )
 
-#View(SalaryData2)
 ################################
 # Total NC 2021 val. = 10.89% (7.4% DR)
-# Model NC = 0.1158533 (7.4% DR) - NoCOLA
+# Model NC = 0.1159567 (7.4% DR) - NoCOLA
 #Adj from 2020 LASERS model (Old * Adj = New) 0.965594614809274
 # Hybrid DB NC Model = 8.677249% (7.25% DR)
 
 #Use 2020 model adj to estimate legacy model NC
-#0.1158533/0.965594614809274
+#0.1159567/0.965594614809274
 
-#(1546913656*0.1199813+473166188* 0.1158533)/(1546913656+473166188)
+#(1546913656* 0.1200884+473166188* 0.1159567)/(1546913656+473166188)
 #0.1190144 #Model weighted
 #0.1089 #Val
 
-#0.1089/0.1190144
+#0.103/0.1191206
 #ADJUSTMENT from Model to Val = 0.8850011
 
-View(SalaryData2*0.9150153)
+SalaryData2*0.921153#0.8646699# -> 7.6 ARR adjustment
+#7.25% ARR adjustment -> 0.9150153
+#0.07933557/SalaryData2
+
 
 #2022: 0.08780854
 #2018: 0.07720575

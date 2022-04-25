@@ -110,7 +110,7 @@ TerminationRateBefore10 <- read_excel(FileName, sheet = 'Termination before 10')
 BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
                          ARR = ARR, COLA = COLA, BenMult = BenMult, DC = TRUE, e.age = 27,
                          NormalRetAgeI = NormalRetAgeI, ReduceRetAge = ReduceRetAge,
-                         DB_EE_cont =  DB_EE_cont, 
+                         DB_EE_cont =  DB_EE_cont, Retirement = "Baseline",
                          DC_EE_cont = DC_EE_cont, DC_ER_cont = DC_ER_cont, DC_return = DC_return){
   ################################# 
   NormalRetAgeI <- NormalRetAgeI
@@ -119,15 +119,15 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   tier <- tier
   
   ## Adding YOS & Age retirement tables for Class II
-  if(tier == 3){
-    RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates')}else{#Updated to SCRS*
-      #Class Two members who attain age 65 before attaining 28 years of service
-      RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates Age')
-      #Class Two members who attain 28 years of service
-      RetirementRates2 <- read_excel(FileName, sheet = 'Retirement Rates YOS')
-    }
-  #View(TerminationRateBefore10)
-  
+  if(tier == 3 & Retirement == "NRP"){
+    RetirementRates <- read_excel(FileName, sheet = 'NRP Retirement')}else if(tier == 3 & Retirement != "NRP"){
+      RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates')}else{#Updated to SCRS*
+        #Class Two members who attain age 65 before attaining 28 years of service
+        RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates Age')
+        #Class Two members who attain 28 years of service
+        RetirementRates2 <- read_excel(FileName, sheet = 'Retirement Rates YOS')
+      }
+  #View(RetirementRates)
   ### Automate into a package ###
   
   cumFV <- function(interest, cashflow){
@@ -377,8 +377,29 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   
   #If you're retirement eligible, use the retirement rates, then checks YOS < 5 and use the regular termination rates
   
-  if(tier == 3){
+  if(tier == 3 & Retirement == "NRP"){
     ## Class III new hires
+    SeparationRates <- SeparationRates %>% 
+      mutate(retirement_type = RetirementType(Age,YOS),
+             
+             SepRateMale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
+               #ifelse(
+               IsRetirementEligible(Age, YOS, tier = tier)==T, 
+               NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
+             SepRateFemale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
+               #ifelse(
+               IsRetirementEligible(Age, YOS, tier = tier)==T, 
+               NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
+             SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
+      group_by(entry_age) %>% 
+      mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
+             SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
+      ungroup()
+    
+    ## Class II legacy
+  }else if (tier == 3){
     SeparationRates <- SeparationRates %>% 
       mutate(retirement_type = RetirementType(Age,YOS),
              
@@ -397,8 +418,47 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
       mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
              SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
       ungroup()
-    
-    ## Class II legacy
+  }else{
+    SeparationRates <- SeparationRates %>% 
+      mutate(retirement_type = RetirementType(Age,YOS),
+             
+             SepRateMale = ifelse(retirement_type == "Normal No Rule of 90",if(employee == "Blend"){NormalMaleBlend.x}#Age >= 65
+                                  else if(employee == "Teachers"){NormalMaleTeacher.x}
+                                  else{NormalMaleGeneral.x},
+                                  ifelse(retirement_type == "Normal With Rule of 90", if(employee == "Blend"){NormalMaleBlend.y} #YOS >= 28
+                                         else if(employee == "Teachers"){NormalMaleTeacher.y}
+                                         else{NormalMaleGeneral.y},
+                                         ifelse(retirement_type == "Reduced", if(employee == "Blend"){ReducedMaleBlend}
+                                                else if(employee == "Teachers"){ReducedMaleTeacher}
+                                                else{ReducedMaleGeneral},#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+                                                ifelse(YOS < 11, 
+                                                       if(employee == "Blend"){TermBefore10BlendMale}
+                                                       else if(employee == "Teachers"){TermBefore10TeacherMale}
+                                                       else{TermBefore10GeneralMale}, 
+                                                       if(employee == "Blend"){TermAfter10BlendMale}
+                                                       else if(employee == "Teachers"){TermAfter10TeacherMale}
+                                                       else{TermAfter10GeneralMale})))),
+             SepRateFemale = ifelse(retirement_type == "Normal No Rule of 90", if(employee == "Blend"){NormalFeMaleBlend.x}
+                                    else if(employee == "Teachers"){NormalFeMaleTeacher.x}
+                                    else{NormalFeMaleGeneral.x},
+                                    ifelse(retirement_type == "Normal With Rule of 90", if(employee == "Blend"){NormalFeMaleBlend.y}
+                                           else if(employee == "Teachers"){NormalFeMaleTeacher.y}
+                                           else{NormalFeMaleGeneral.y},
+                                           ifelse(retirement_type == "Reduced", if(employee == "Blend"){ReducedFeMaleBlend}
+                                                  else if(employee == "Teachers"){ReducedFeMaleTeacher}
+                                                  else{ReducedFeMaleGeneral},#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+                                                  ifelse(YOS < 11, 
+                                                         if(employee == "Blend"){TermBefore10BlendFeMale}
+                                                         else if(employee == "Teachers"){TermBefore10TeacherFeMale}
+                                                         else{TermBefore10GeneralFeMale}, 
+                                                         if(employee == "Blend"){TermAfter10BlendFeMale}
+                                                         else if(employee == "Teachers"){TermAfter10TeacherFeMale}
+                                                         else{TermAfter10GeneralFeMale})))),
+             SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
+      group_by(entry_age) %>% 
+      mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
+             SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
+      ungroup()
   }
   #Filter out unecessary values
   SeparationRates <- SeparationRates %>% select(Age, YOS, RemainingProb, SepProb)#Adding "YearsFirstRetire" for individual benefit filtering
@@ -660,6 +720,7 @@ SalaryData2 <- data.frame(
                NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
                e.age = 27, #for DC
+               Retirement = "Baseline",
                NormalRetAgeI = 62,
                ReduceRetAge = 40,
                ARR = 0.0725, #can set manually
@@ -671,31 +732,12 @@ SalaryData2 <- data.frame(
                DC_return = 0.0525)
 )
 
-#View(SalaryData2*0.9529218)
+#View(SalaryData2)
 
 #Current DB - NC 10.9% (No Cola)
 #Alt DB - NC 11.4% (1% Cola) = 0.5 pct point
 #Alt DB - NC 11.87% (2% Cola) = 1 pct point
 
-
-palette_reason <- list(Orange="#FF6633",
-                       LightOrange="#FF9900",
-                       DarkGrey="#333333",
-                       LightGrey= "#CCCCCC",
-                       SpaceGrey ="#A69FA1",
-                       DarkBlue="#0066CC",
-                       GreyBlue= "#6699CC",
-                       Yellow= "#FFCC33",
-                       LightBlue = "#66B2FF",
-                       SatBlue = "#3366CC",
-                       Green = "#669900",LightGreen = "#00CC66", Red = "#CC0000",LightRed="#FF0000")
-
-
-#View(SalaryData2)
-#data <- SalaryData2 %>% select(entry_age, Age, YOS, RealPenWealth)
-
-#Save outputs
-#write_csv(data, "SCRS_Benefits_all_Ages.csv")
 
 #########
 # View(SalaryData2 %>% filter(YOS == 20) %>%
@@ -753,7 +795,7 @@ ui <- fluidPage(
                  sliderInput("cola", "Cost-of-Living Adjustment (%)", min = 0, max = 2, step = 0.25, value = 1),
                  sliderInput("mult", "Benefit Multiplier (%)", min = 1, max = 2.8, step = 0.1, value = 1.8),
                  sliderInput("DB_EEcontr", "DB EE Contribution (%)", min = 2, max = 12, step = 0.05, value = 4),
-                 sliderInput("DCreturn", "DC Return Rate (%) --------------------------------------------",min = 3.25, max = 8.25, step = 0.25, value = 5.25),
+                 sliderInput("DCreturn", "DC Return Rate (%) --------------------------------------------",min = 1.25, max = 8.25, step = 0.25, value = 5.25),
                  sliderInput("DC_EEcontr", "DC EE Contribution (%)", min = 0, max = 14, step = 0.25, value = 4),
                  sliderInput("DC_ERcontr", "DC ER Contribution (%)", min = 0, max = 14, step = 0.25, value = 3),
                  
@@ -766,6 +808,8 @@ ui <- fluidPage(
       ),
       radioGroupButtons("comp", "DB & DC Components", choices = c("No","Yes"), selected = "No",
                        status = "primary"),
+      radioGroupButtons("ret", "Actuarial Note Retirement", choices = c("No","Yes"), selected = "No",
+                        status = "primary"),
       plotly::plotlyOutput("plot_pwealth"),
       #br(),
       #tags$div(htmlOutput("text1")),
@@ -802,6 +846,7 @@ server <- function(input, output, session){
                    NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                    DC = TRUE, #(TRUE -- calculates DC using e.age)
                    e.age = input$e.age, #for DC
+                   Retirement = "Baseline",
                    NormalRetAgeI = 62,
                    ReduceRetAge = 40,
                    ARR = 0.0725, #can set manually
@@ -837,6 +882,7 @@ server <- function(input, output, session){
                    NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                    DC = TRUE, #(TRUE -- calculates DC using e.age)
                    e.age = input$e.age, #for DC
+                   Retirement = if(input$ret == "Yes"){"NRP"}else{"Baseline"},
                    NormalRetAgeI = 62,
                    ReduceRetAge = 40,
                    ARR = input$dr/100, #can set manually
@@ -872,6 +918,7 @@ server <- function(input, output, session){
                      NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                      DC = TRUE, #(TRUE -- calculates DC using e.age)
                      e.age = input$e.age, #for DC
+                     Retirement = if(input$ret == "Yes"){"NRP"}else{"Baseline"},
                      NormalRetAgeI = 65,
                      ReduceRetAge = 55,
                      ARR = input$dr/100, #can set manually
