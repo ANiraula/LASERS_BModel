@@ -116,10 +116,11 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   NormalRetAgeI <- NormalRetAgeI
   ReduceRetAge <- ReduceRetAge
   employee <- employee
+  Retirement <- Retirement
   tier <- tier
   
   ## Adding YOS & Age retirement tables for Class II
-  if(tier == 3 & Retirement == "NRP"){
+  if(Retirement == "NRP"){
     RetirementRates <- read_excel(FileName, sheet = 'NRP Retirement')}else if(tier == 3 & Retirement != "NRP"){
       RetirementRates <- read_excel(FileName, sheet = 'Retirement Rates')}else{#Updated to SCRS*
         #Class Two members who attain age 65 before attaining 28 years of service
@@ -377,22 +378,13 @@ BenefitModel <- function(employee = "Blend", tier = 3, NCost = FALSE,
   
   #If you're retirement eligible, use the retirement rates, then checks YOS < 5 and use the regular termination rates
   
-  if(tier == 3 & Retirement == "NRP"){
+  if(Retirement == "NRP"){
     ## Class III new hires
     SeparationRates <- SeparationRates %>% 
-      mutate(retirement_type = RetirementType(Age,YOS),
-             
-             SepRateMale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
-               #ifelse(
-               IsRetirementEligible(Age, YOS, tier = tier)==T, 
-               NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
-             SepRateFemale = ifelse(#retirement_type == "Normal With Rule of 90", Rule90,
-               #ifelse(
-               IsRetirementEligible(Age, YOS, tier = tier)==T, 
-               NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
-               ifelse(YOS < 11, TermBefore10General,TermAfter10General)),
-             SepRate = ((SepRateMale+SepRateFemale)/2)) %>% 
+      mutate(
+             SepRate = ifelse(IsRetirementEligible(Age,YOS)==T, 
+                              NRP,#Using 6 ifelse/if statements for 3 EE & 3 ret. types
+                              ifelse(YOS < 10, TermBefore10General,TermAfter10General))) %>% 
       group_by(entry_age) %>% 
       mutate(RemainingProb = cumprod(1 - lag(SepRate, default = 0)),
              SepProb = lag(RemainingProb, default = 1) - RemainingProb) %>% 
@@ -719,10 +711,10 @@ SalaryData2 <- data.frame(
                tier = 3, #tier 2 for Legacy
                NCost = TRUE, #(TRUE -- calculates GNC on original SalaryData)
                DC = TRUE, #(TRUE -- calculates DC using e.age)
-               e.age = 27, #for DC
-               Retirement = "Baseline",
+               e.age = 27, #for DCƒARR
                NormalRetAgeI = 62,
                ReduceRetAge = 40,
+               Retirement = "X",
                ARR = 0.0725, #can set manually
                COLA = 0.01, #can set manually
                BenMult = 0.018, #can set manually
@@ -732,30 +724,24 @@ SalaryData2 <- data.frame(
                DC_return = 0.0525)
 )
 
-#View(SalaryData2)
+#SalaryData2*0.921153#0
+################################
+# Total NC 2021 val. = 10.89% (7.4% DR)
+# Model NC = 0.1159567 (7.4% DR) - NoCOLA
+#Adj from 2020 LASERS model (Old * Adj = New) 0.965594614809274
+# Hybrid DB NC Model = 8.677249% (7.25% DR)
 
-#Current DB - NC 10.9% (No Cola)
-#Alt DB - NC 11.4% (1% Cola) = 0.5 pct point
-#Alt DB - NC 11.87% (2% Cola) = 1 pct point
+#Use 2020 model adj to estimate legacy model NC
+#0.1159567/0.965594614809274
 
+#(1546913656* 0.1200884+473166188* 0.1159567)/(1546913656+473166188)
+#0.1190144 #Model weighted
+#0.1089 #Val
 
-#########
-# View(SalaryData2 %>% filter(YOS == 20) %>%
-#        select(entry_age, Age, YOS, RealPenWealth)) 
+#0.103/0.1191206
+#ADJUSTMENT from Model to Val = 0.8850011
 
-# View(SalaryData2 %>% filter(Age + YOS >= 90 & Age + YOS < 92) %>%
-#         select(entry_age, Age, YOS, RealPenWealth))
-
-## Graphing PWealth accrual [ALL ENTRY AGES]
-
-# ggplot(SalaryData, aes(Age,RealPenWealth/1000, group = entry_age, col = as.factor(entry_age)))+
-#   geom_line(size = 1)+
-#   theme_bw()+
-#   scale_x_continuous(breaks = seq(0, 80, by = 10),labels = function(x) paste0(x), 
-#                      name = "Age (Entry age at 27)", expand = c(0,0)) + 
-#   scale_y_continuous(breaks = seq(0, 5000, by = 100),labels = function(x) paste0("$",x), 
-#                      name = "Present Value of Pension Wealth ($Thousands)", expand = c(0,0)) 
-##################################
+#SalaryData2*0.921153#
 
 #write_csv(SalaryData2, "SCRS_BModel.csv")
 ######### Graphing SINGLE ENTRY AGE + RETENTION
@@ -882,7 +868,7 @@ server <- function(input, output, session){
                    NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                    DC = TRUE, #(TRUE -- calculates DC using e.age)
                    e.age = input$e.age, #for DC
-                   Retirement = if(input$ret == "Yes"){"NRP"}else{"Baseline"},
+                   Retirement = ifelse(input$ret == "Yes","NRP", "Baseline"),
                    NormalRetAgeI = 62,
                    ReduceRetAge = 40,
                    ARR = input$dr/100, #can set manually
@@ -895,11 +881,11 @@ server <- function(input, output, session){
       )
     )
     
-    #View(SalaryData2)
+    #View(SalaryData3)
     e.age <- unique(SalaryData3$entry_age)
     SalaryData3 <- data.frame(SalaryData3)
     SalaryData3$entry_age <- as.numeric(SalaryData3$entry_age)
-    
+
     SalaryData3$PVPenWealth <- as.numeric(SalaryData3$RealPenWealth)
     
     SalaryData3
@@ -918,7 +904,7 @@ server <- function(input, output, session){
                      NCost = FALSE, #(TRUE -- calculates GNC on original SalaryData)
                      DC = TRUE, #(TRUE -- calculates DC using e.age)
                      e.age = input$e.age, #for DC
-                     Retirement = if(input$ret == "Yes"){"NRP"}else{"Baseline"},
+                     Retirement = ifelse(input$ret == "Yes","NRP", "Baseline"),
                      NormalRetAgeI = 65,
                      ReduceRetAge = 55,
                      ARR = input$dr/100, #can set manually
@@ -995,7 +981,7 @@ server <- function(input, output, session){
                                                             "<br>Hybrid DC Wealth at ", input$DCreturn,"%: $", round(RealDC_balance/1000,1), " Thousands"),fill = "Hybrid DC (Same)"), size = 1, color = palette_reason$Orange,linetype=3)+
         
         
-      geom_line(aes(Age, RemainingProb* (y_max/1000),
+      geom_line(aes(Age, SalaryData3$RemainingProb* (y_max/1000),
                     group = 3,
                     text = paste0("Age: ", Age,
                                   "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share of Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+
@@ -1037,7 +1023,7 @@ server <- function(input, output, session){
                               text = paste0("Age: ", Age,
                                             "<br>2018 Hybrid DB/DC Wealth (", DC_return*100,"% Return & ", (input$mult-0.3),"% Mult): $", round(SalaryData4$RealHybridWealth/1000,1), " Thousands"),fill = "2018 Hybrid DB/DC"), size = 1, color = palette_reason$SpaceGrey)+
                 
-    geom_line(aes(Age, RemainingProb* (y_max/1000),
+    geom_line(aes(Age, SalaryData3$RemainingProb* (y_max/1000),
                   group = 3,
                   text = paste0("Age: ", Age,
                                 "<br>Members Remaining: ", round(RemainingProb*100,1), "%"),fill = "Share of Members Remaining"), size = 1, color = palette_reason$LightBlue, linetype = "dashed")+

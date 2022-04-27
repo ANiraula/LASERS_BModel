@@ -724,7 +724,7 @@ SalaryData2 <- data.frame(
                ReduceRetAge = 40,
                Retirement = "Baseline",
                ARR = 0.0725, #can set manually
-               COLA = 0.01, #can set manually
+               COLA = 0.02, #can set manually
                BenMult = 0.018, #can set manually
                DB_EE_cont = 0.04,
                DC_EE_cont =  0.04, #can set manually
@@ -752,6 +752,7 @@ SalaryData2*0.921153#0.8646699# -> 7.6 ARR adjustment
 #7.25% ARR adjustment -> 0.9150153
 #0.07933557/SalaryData2
 
+#1% COLA = 0.7% NC
 
 #2022: 0.08780854
 #2018: 0.07720575
